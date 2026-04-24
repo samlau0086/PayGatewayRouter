@@ -17,6 +17,7 @@ import { pluginA, pluginB } from './lib/plugin-templates';
 import JSZip from 'jszip';
 import { apiFetch } from './lib/api';
 import { AdminPanel } from './components/AdminPanel';
+import { Toaster, toast } from 'sonner';
 
 const translations: Record<'en'|'zh', Record<string, string>> = {
   en: {
@@ -200,6 +201,7 @@ const translations: Record<'en'|'zh', Record<string, string>> = {
 export default function App() {
   return (
     <BrowserRouter>
+      <Toaster position="top-right" richColors />
       <Routes>
         <Route path="/intro" element={<LandingPage />} />
         <Route path="/admin" element={<VortexPayApp />} />
@@ -242,7 +244,7 @@ function VortexPayApp() {
     try {
       const data = await apiFetch('/auth/setup-otp', { method: 'POST' });
       setQrCode(data.qrCode);
-    } catch(e: any) { alert(e.message || e); }
+    } catch(e: any) { toast.error(e.message || e); }
   };
 
   const confirmOtp = async () => {
@@ -251,23 +253,23 @@ function VortexPayApp() {
         method: 'POST',
         body: JSON.stringify({ code: setupOtpCode })
       });
-      alert('OTP Enabled Successfully!');
+      toast.success('OTP Enabled Successfully!');
       setQrCode('');
       setSetupOtpCode('');
       // Force stats refresh
       const data = await apiFetch('/stats');
       setStats({...stats, tenantConfig: data.tenantConfig});
-    } catch(e: any) { alert(e.message || e); }
+    } catch(e: any) { toast.error(e.message || e); }
   };
 
   const disableOtp = async () => {
     if (!confirm('Are you sure you want to disable 2FA?')) return;
     try {
       await apiFetch('/auth/disable-otp', { method: 'POST' });
-      alert('OTP Disabled');
+      toast.success('OTP Disabled');
       const data = await apiFetch('/stats');
       setStats({...stats, tenantConfig: data.tenantConfig});
-    } catch(e: any) { alert(e.message || e); }
+    } catch(e: any) { toast.error(e.message || e); }
   };
 
   const [emailInput, setEmailInput] = useState('');
@@ -304,14 +306,14 @@ function VortexPayApp() {
          setAuthMode('otp');
        } else {
          if (authMode === 'register') {
-           alert('Registration successful! You are now being logged in.');
+           toast.success('Registration successful! You are now being logged in.');
          }
          localStorage.setItem('token', data.token);
          setUser(data.user);
          setIsAdmin(data.user.email === 'samlau0086@gmail.com');
        }
     } catch(e: any) {
-       alert(e.message || e);
+       toast.error(e.message || e);
     }
     setAuthLoading(false);
   };
@@ -395,7 +397,7 @@ function VortexPayApp() {
         setPaymentUrl(data.paymentUrl);
         setSysOrder(data.sysOrderId);
       } else {
-        alert("Checkout Failed: " + data.error);
+        toast.error("Checkout Failed: " + data.error);
       }
     } catch(err) {
       console.error(err);
