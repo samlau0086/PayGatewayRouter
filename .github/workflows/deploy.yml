@@ -31,7 +31,7 @@ jobs:
           username: ${{ secrets.VPS_USERNAME }}
           key: ${{ secrets.VPS_SSH_KEY }}
           source: ".,!node_modules,!data.db*"
-          target: "/var/www/vortexpay"
+          target: "/opt/1panel/www/sites/vortexpay"
 
       - name: Post-deployment commands
         uses: appleboy/ssh-action@master
@@ -40,7 +40,7 @@ jobs:
           username: ${{ secrets.VPS_USERNAME }}
           key: ${{ secrets.VPS_SSH_KEY }}
           script: |
-            cd /var/www/vortexpay
+            cd /opt/1panel/www/sites/vortexpay
             npm install --production
             npm install tsx # Needed for the current server setup
             pm2 delete vortexpay || true
