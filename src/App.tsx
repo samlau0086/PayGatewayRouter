@@ -3,6 +3,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 import React, { useEffect, useState } from 'react';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { LandingPage } from './components/LandingPage';
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card';
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
@@ -196,7 +198,22 @@ const translations: Record<'en'|'zh', Record<string, string>> = {
 };
 
 export default function App() {
-  const [lang, setLang] = useState<'en' | 'zh'>('zh'); // default to zh as requested implicitly by Chinese prompt
+  return (
+    <BrowserRouter>
+      <Routes>
+        <Route path="/intro" element={<LandingPage />} />
+        <Route path="/admin" element={<VortexPayApp />} />
+        {/* Redirect root to intro for sales focus */}
+        <Route path="/" element={<Navigate to="/intro" replace />} />
+        {/* Fallback */}
+        <Route path="*" element={<Navigate to="/intro" replace />} />
+      </Routes>
+    </BrowserRouter>
+  );
+}
+
+function VortexPayApp() {
+  const [lang, setLang] = useState<'en' | 'zh'>('zh'); 
   const t = (key: string) => translations[lang][key] || key;
 
   const [user, setUser] = useState<any>(null);
