@@ -591,11 +591,11 @@ export default function App() {
                         <div className="w-8 h-8 rounded-full bg-[#141414] text-white flex items-center justify-center font-bold">2</div>
                         <h3 className="font-bold uppercase tracking-widest text-sm">{t('sim_webhook')}</h3>
                       </div>
-                      <div className="flex flex-col sm:flex-row gap-4 mb-4">
-                        <Button className="w-full bg-[#141414] hover:bg-black rounded-none h-12 uppercase font-bold tracking-widest" onClick={() => simulateBWebhook('paid')}>
+                      <div className="flex flex-col xl:flex-row gap-4 mb-4">
+                        <Button className="w-full xl:w-1/2 bg-[#141414] hover:bg-black rounded-none h-12 uppercase font-bold tracking-widest whitespace-normal h-auto py-3" onClick={() => simulateBWebhook('paid')}>
                            {t('resolve_paid')}
                         </Button>
-                         <Button variant="outline" className="w-full rounded-none h-12 uppercase font-bold tracking-widest border-red-600 text-red-600 hover:bg-red-50 hover:text-red-700" onClick={() => simulateBWebhook('failed')}>
+                         <Button variant="outline" className="w-full xl:w-1/2 rounded-none h-12 uppercase font-bold tracking-widest border-red-600 text-red-600 hover:bg-red-50 hover:text-red-700 whitespace-normal h-auto py-3" onClick={() => simulateBWebhook('failed')}>
                            {t('resolve_failed')}
                         </Button>
                       </div>
@@ -604,11 +604,11 @@ export default function App() {
                         <div className="w-8 h-8 rounded-full bg-[#141414] text-white flex items-center justify-center font-bold">3</div>
                         <h3 className="font-bold uppercase tracking-widest text-sm">{t('webhook_origin')}</h3>
                       </div>
-                      <div className="flex flex-col sm:flex-row gap-4 mb-4">
-                        <Button className="w-full rounded-none h-12 uppercase font-bold tracking-widest border-orange-600 text-orange-600 hover:bg-orange-50 hover:text-orange-700 bg-white" onClick={() => simulateAWebhook('refunded')}>
+                      <div className="flex flex-col xl:flex-row gap-4 mb-4">
+                        <Button className="w-full xl:w-1/2 rounded-none h-12 uppercase font-bold tracking-widest border-orange-600 text-orange-600 hover:bg-orange-50 hover:text-orange-700 bg-white whitespace-normal h-auto py-3" onClick={() => simulateAWebhook('refunded')}>
                            {t('resolve_refunded')}
                         </Button>
-                         <Button variant="outline" className="w-full rounded-none h-12 uppercase font-bold tracking-widest border-slate-600 text-slate-600 hover:bg-slate-50 hover:text-slate-700" onClick={() => simulateAWebhook('cancelled')}>
+                         <Button variant="outline" className="w-full xl:w-1/2 rounded-none h-12 uppercase font-bold tracking-widest border-slate-600 text-slate-600 hover:bg-slate-50 hover:text-slate-700 whitespace-normal h-auto py-3" onClick={() => simulateAWebhook('cancelled')}>
                            {t('resolve_cancelled')}
                         </Button>
                       </div>
