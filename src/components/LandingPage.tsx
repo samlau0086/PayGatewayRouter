@@ -12,7 +12,13 @@ import {
   Network,
   CreditCard,
   Lock,
-  Languages
+  Languages,
+  Cpu,
+  Layers,
+  HelpCircle,
+  MessageSquare,
+  Activity,
+  History
 } from 'lucide-react';
 import { motion } from 'motion/react';
 
@@ -59,6 +65,29 @@ const translations = {
     mostPopular: '最受欢迎 🔥',
     coreRecommend: '核心推荐',
     contactManager: '联系客服经理',
+    statsTitle: '深受全球 2,000+ 企业信赖',
+    stat1Label: '日均处理交易',
+    stat1Value: '500k+',
+    stat2Label: '系统结算成功率',
+    stat2Value: '99.98%',
+    stat3Label: '全球节点覆盖',
+    stat3Value: '18',
+    archTitle: '底层架构级的双重防护',
+    archSub: '我们不只是做分流，我们重新定义了支付安全边界',
+    archPoint1Title: '请求伪装层',
+    archPoint1Desc: '自动剥离业务端敏感信息，通过动态指纹模拟真实交易环境。',
+    archPoint2Title: '分布式结算核验',
+    archPoint2Desc: '每一笔资金变动都经过 3 个独立节点共识核验，确保账目永远准确。',
+    faqTitle: '常见问题解答',
+    faqQ1: 'VortexPay 是否需要安装在我的服务器上？',
+    faqA1: '是的，我们支持私有化部署。您可以选择使用我们的 SaaS 版本，也可以购买源码部署在您自己的独立服务器上，以获得最高级别的数据安全性。',
+    faqQ2: '如何保证分流的比例是准确的？',
+    faqA2: '内置的调度器采用滑动窗口算法，能够根据您设置的权重比例（如 30:70）进行精确的心跳分发，误差率控制在 0.1% 以内。',
+    faqQ3: '如果 B 站网关响应慢会发生什么？',
+    faqA3: '系统会自动检测网关延迟及健康状态。一旦响应时间超过阈值，该节点将被自动降级或移出轮询池，直到恢复正常。',
+    ctaTitle: '准备好升级您的支付基建了吗？',
+    ctaSub: '立即加入 VortexPay，体验前所未有的稳定与自由。',
+    ctaBtn: '开始免费试用',
     footerTerms: '使用协议',
     footerPrivacy: '隐私政策',
     footerContact: '联系我们',
@@ -106,6 +135,29 @@ const translations = {
     mostPopular: 'MOST POPULAR 🔥',
     coreRecommend: 'Recommended',
     contactManager: 'Contact Manager',
+    statsTitle: 'Trusted by 2,000+ Businesses Globally',
+    stat1Label: 'Daily Transactions',
+    stat1Value: '500k+',
+    stat2Label: 'Settlement Success Rate',
+    stat2Value: '99.98%',
+    stat3Label: 'Global Node Coverage',
+    stat3Value: '18',
+    archTitle: 'Architecture-Level Protection',
+    archSub: 'We don\'t just route; we redefine the security boundary.',
+    archPoint1Title: 'Request Masking Layer',
+    archPoint1Desc: 'Automatically strip sensitive data and simulate real environments via dynamic fingerprinting.',
+    archPoint2Title: 'Distributed Verification',
+    archPoint2Desc: 'Every fund movement is verified by 3 independent nodes to ensure accuracy.',
+    faqTitle: 'Frequently Asked Questions',
+    faqQ1: 'Do I need to install VortexPay on my own server?',
+    faqA1: 'Yes, we support private deployment. You can use our SaaS version or purchase the source code to deploy on your own independent servers for maximum data security.',
+    faqQ2: 'How do you guarantee accurate routing ratios?',
+    faqA2: 'Our built-in scheduler uses a sliding window algorithm to ensure precise heartbeat distribution (e.g., 30:70) with an error margin under 0.1%.',
+    faqQ3: 'What happens if a gateway responds slowly?',
+    faqA3: 'The system automatically monitors latency and health. If response time exceeds a threshold, the node is downgraded or removed from the pool until it recovers.',
+    ctaTitle: 'Ready to upgrade your payment infrastructure?',
+    ctaSub: 'Join VortexPay today for unprecedented stability and freedom.',
+    ctaBtn: 'Start Free Trial',
     footerTerms: 'Terms of Service',
     footerPrivacy: 'Privacy Policy',
     footerContact: 'Contact Us',
@@ -198,6 +250,34 @@ export const LandingPage = () => {
                </div>
             </div>
           </motion.div>
+        </div>
+      </section>
+
+      {/* Stats & Trust Section */}
+      <section className="pb-24 pt-12 border-t border-slate-100 bg-white">
+        <div className="max-w-7xl mx-auto px-6">
+          <p className="text-center text-slate-400 text-sm font-bold mb-12 uppercase tracking-widest">{t('statsTitle')}</p>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-8 items-center justify-items-center opacity-60 grayscale hover:grayscale-0 transition-all duration-500">
+             <img src="https://upload.wikimedia.org/wikipedia/commons/b/ba/Stripe_Logo%2C_revised_2016.svg" alt="Partner" className="h-8" />
+             <img src="https://upload.wikimedia.org/wikipedia/commons/b/b5/PayPal.svg" alt="Partner" className="h-8" />
+             <img src="https://upload.wikimedia.org/wikipedia/commons/b/b5/Visa_2014_logo_detail.svg" alt="Partner" className="h-8" />
+             <img src="https://upload.wikimedia.org/wikipedia/commons/2/2a/Mastercard-logo.svg" alt="Partner" className="h-8" />
+          </div>
+          
+          <div className="mt-24 grid grid-cols-1 md:grid-cols-3 gap-12 text-center">
+             <div className="space-y-2">
+                <div className="text-4xl font-black text-slate-900">{t('stat1Value')}</div>
+                <div className="text-slate-500 font-medium">{t('stat1Label')}</div>
+             </div>
+             <div className="space-y-2">
+                <div className="text-4xl font-black text-indigo-600">{t('stat2Value')}</div>
+                <div className="text-slate-500 font-medium">{t('stat2Label')}</div>
+             </div>
+             <div className="space-y-2">
+                <div className="text-4xl font-black text-slate-900">{t('stat3Value')}</div>
+                <div className="text-slate-500 font-medium">{t('stat3Label')}</div>
+             </div>
+          </div>
         </div>
       </section>
 
@@ -329,6 +409,71 @@ export const LandingPage = () => {
         </div>
       </section>
 
+      {/* Deep Architecture Section */}
+      <section className="py-24 bg-slate-50 relative overflow-hidden">
+        <div className="absolute inset-0 opacity-[0.03] pointer-events-none">
+           <svg className="w-full h-full" viewBox="0 0 100 100" preserveAspectRatio="none">
+              <path d="M0 100 L100 0" stroke="currentColor" strokeWidth="0.1" />
+              <path d="M0 0 L100 100" stroke="currentColor" strokeWidth="0.1" />
+           </svg>
+        </div>
+        <div className="max-w-7xl mx-auto px-6 relative">
+          <div className="text-center mb-16">
+            <h2 className="text-3xl md:text-4xl font-black text-slate-900 mb-4">{t('archTitle')}</h2>
+            <p className="text-slate-500 max-w-2xl mx-auto">{t('archSub')}</p>
+          </div>
+          
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
+             <div className="space-y-8">
+                <div className="flex gap-6 p-6 bg-white rounded-2xl shadow-sm border border-slate-100 hover:shadow-md transition-shadow">
+                   <div className="w-12 h-12 bg-indigo-50 rounded-xl flex items-center justify-center shrink-0">
+                      <Cpu className="w-6 h-6 text-indigo-600" />
+                   </div>
+                   <div>
+                      <h4 className="text-lg font-bold text-slate-900 mb-2">{t('archPoint1Title')}</h4>
+                      <p className="text-slate-500 text-sm leading-relaxed">{t('archPoint1Desc')}</p>
+                   </div>
+                </div>
+                <div className="flex gap-6 p-6 bg-white rounded-2xl shadow-sm border border-slate-100 hover:shadow-md transition-shadow">
+                   <div className="w-12 h-12 bg-blue-50 rounded-xl flex items-center justify-center shrink-0">
+                      <Layers className="w-6 h-6 text-blue-600" />
+                   </div>
+                   <div>
+                      <h4 className="text-lg font-bold text-slate-900 mb-2">{t('archPoint2Title')}</h4>
+                      <p className="text-slate-500 text-sm leading-relaxed">{t('archPoint2Desc')}</p>
+                   </div>
+                </div>
+             </div>
+             
+             <div className="relative p-8 bg-white rounded-3xl border border-slate-200 shadow-xl overflow-hidden">
+                <div className="flex items-center gap-2 mb-6">
+                   <Activity className="w-5 h-5 text-indigo-600 animate-pulse" />
+                   <span className="text-xs font-black uppercase tracking-widest text-slate-400">Node_Consensus_Monitor</span>
+                </div>
+                <div className="space-y-4">
+                   {[1, 2, 3].map((i) => (
+                      <div key={i} className="flex items-center justify-between p-3 bg-slate-50 rounded-lg border border-slate-100">
+                         <div className="flex items-center gap-3">
+                            <div className={`w-2 h-2 rounded-full ${i === 3 ? 'bg-emerald-500' : 'bg-indigo-500'}`} />
+                            <span className="text-xs font-mono text-slate-600">NODE_00{i}_HEALTH</span>
+                         </div>
+                         <div className="text-[10px] font-bold text-emerald-600 uppercase">Verified</div>
+                      </div>
+                   ))}
+                </div>
+                <div className="mt-8 border-t border-slate-100 pt-6 flex items-center justify-between">
+                   <div className="flex -space-x-2">
+                      {[1, 2, 3, 4].map(i => (
+                         <div key={i} className="w-6 h-6 rounded-full border-2 border-white bg-slate-200" />
+                      ))}
+                   </div>
+                   <span className="text-[10px] text-slate-400 font-bold tracking-tighter uppercase italic">Secure Cluster Active</span>
+                </div>
+             </div>
+          </div>
+        </div>
+      </section>
+
       {/* Pricing */}
       <section id="pricing" className="py-24 bg-slate-900">
         <div className="max-w-7xl mx-auto px-6 text-center">
@@ -377,6 +522,71 @@ export const LandingPage = () => {
              </Card>
           </div>
         </div>
+      </section>
+
+      {/* FAQ Section */}
+      <section className="py-24 bg-white">
+         <div className="max-w-3xl mx-auto px-6">
+            <div className="text-center mb-16">
+               <h2 className="text-3xl font-black text-slate-900 mb-4">{t('faqTitle')}</h2>
+               <div className="w-16 h-1.5 bg-indigo-600 mx-auto rounded-full" />
+            </div>
+            
+            <div className="space-y-8">
+               <div className="group">
+                  <h4 className="text-lg font-bold text-slate-900 mb-3 flex items-center gap-3">
+                     <HelpCircle className="w-5 h-5 text-indigo-500 shrink-0" />
+                     {t('faqQ1')}
+                  </h4>
+                  <p className="text-slate-500 text-sm pl-8 border-l-2 border-slate-100 group-hover:border-indigo-600 transition-colors">
+                     {t('faqA1')}
+                  </p>
+               </div>
+               <div className="group">
+                  <h4 className="text-lg font-bold text-slate-900 mb-3 flex items-center gap-3">
+                     <HelpCircle className="w-5 h-5 text-indigo-500 shrink-0" />
+                     {t('faqQ2')}
+                  </h4>
+                  <p className="text-slate-500 text-sm pl-8 border-l-2 border-slate-100 group-hover:border-indigo-600 transition-colors">
+                     {t('faqA2')}
+                  </p>
+               </div>
+               <div className="group">
+                  <h4 className="text-lg font-bold text-slate-900 mb-3 flex items-center gap-3">
+                     <HelpCircle className="w-5 h-5 text-indigo-500 shrink-0" />
+                     {t('faqQ3')}
+                  </h4>
+                  <p className="text-slate-500 text-sm pl-8 border-l-2 border-slate-100 group-hover:border-indigo-600 transition-colors">
+                     {t('faqA3')}
+                  </p>
+               </div>
+            </div>
+         </div>
+      </section>
+
+      {/* Final CTA */}
+      <section className="py-24 relative overflow-hidden">
+         <div className="absolute inset-0 bg-indigo-600 translate-y-1/2 rounded-[100%] scale-150 blur-3xl opacity-20" />
+         <div className="max-w-4xl mx-auto px-6 text-center relative">
+            <div className="inline-flex p-3 bg-indigo-50 rounded-2xl mb-8">
+               <Zap className="w-8 h-8 text-indigo-600 fill-current" />
+            </div>
+            <h2 className="text-4xl md:text-5xl font-black text-slate-900 mb-6 leading-tight">
+               {t('ctaTitle')}
+            </h2>
+            <p className="text-xl text-slate-500 mb-10">
+               {t('ctaSub')}
+            </p>
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-6">
+               <Button size="lg" className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-full h-16 px-12 text-xl font-bold shadow-2xl shadow-indigo-200" onClick={() => window.location.href = '/admin'}>
+                  {t('ctaBtn')}
+               </Button>
+               <div className="flex items-center gap-2 text-slate-400 font-bold">
+                  <MessageSquare className="w-5 h-5" />
+                  <span>咨询技术顾问</span>
+               </div>
+            </div>
+         </div>
       </section>
 
       {/* Footer */}
