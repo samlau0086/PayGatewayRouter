@@ -1,40 +1,37 @@
-# VPS 部署指南
+# VPS (1Panel) 部署指南
 
-此项目已配置 GitHub Actions 自动部署流程。只需将代码推送到 GitHub 的 `main` 分支，即可自动部署到您的 VPS。
+此项目已配置 GitHub Actions 自动部署流程，特别适配了 1Panel 面板环境。
 
-## 1. VPS 环境准备
+## 1. VPS 环境准备 (1Panel)
 
-在您的 VPS 上，请确保已安装以下软件：
+在您的 VPS 上，请确保：
 
-- **Node.js (v20+)**
-- **npm**
-- **PM2**: `npm install -g pm2`
+- **Node.js**: 建议通过 1Panel 的应用商店安装 Node.js 运行环境（v20+）。
+- **PM2**: 全局安装 PM2：`npm install -g pm2`
+- **目录权限**: 确保 `/opt/1panel/www/sites/vortexpay` 目录存在且 GitHub Actions 使用的 SSH 用户有权写入。
 
 ## 2. GitHub Secrets 配置
 
-在您的 GitHub 仓库中，进入 **Settings > Secrets and variables > Actions**，添加以下 **Repository secrets**:
+在 GitHub 仓库 **Settings > Secrets and variables > Actions** 中添加：
 
 | Secret 名称 | 说明 |
 | :--- | :--- |
-| `VPS_HOST` | 您的 VPS IP 地址或域名 |
-| `VPS_USERNAME` | SSH 用户名（如 `root` 或 `ubuntu`） |
-| `VPS_SSH_KEY` | 您的 SSH 私钥 (`~/.ssh/id_rsa` 的内容) |
+| `VPS_HOST` | 服务器 IP |
+| `VPS_USERNAME` | SSH 用户名 |
+| `VPS_SSH_KEY` | SSH 私钥 |
 
-> **注意**: 请确保您的 VPS 已将对应的公钥添加到 `~/.ssh/authorized_keys` 中。
+## 3. 1Panel 反向代理设置
 
-## 3. 首次部署手动步骤 (可选)
+部署完成后，程序运行在 `3000` 端口。您需要在 1Panel 网站管理中：
+1. 创建或选择一个网站。
+2. 在 **反向代理** 中添加一条规则：
+   - 代理地址：`http://127.0.0.1:3000`
 
-如果目标目录 `/var/www/vortexpay` 不存在，您可能需要先手动创建它并设置权限：
+## 4. 环境变量说明
 
-```bash
-sudo mkdir -p /var/www/vortexpay
-sudo chown -R $USER:$USER /var/www/vortexpay
-```
-
-## 4. 环境变量
-
-在 VPS 的 `/var/www/vortexpay` 目录下，您可以手动创建一个 `.env` 文件来存储生产环境的密钥，如 `JWT_SECRET`。
+在服务器的 `/opt/1panel/www/sites/vortexpay` 目录下，您可以手动创建一个 `.env` 文件来持久化配置。
 
 ---
-
-配置完成后，每次 `git push origin main` 都会自动触发部署。
+**部署状态检查**:
+- 查看运行状态: `pm2 status`
+- 查看实时日志: `pm2 logs vortexpay`
