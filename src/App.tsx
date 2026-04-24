@@ -13,9 +13,7 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { pluginA, pluginB } from './lib/plugin-templates';
 import JSZip from 'jszip';
-import { auth, db, loginWithGoogle, logout } from './lib/firebase';
-import { onAuthStateChanged, User } from 'firebase/auth';
-import { collection, doc, onSnapshot, setDoc, updateDoc, deleteDoc, query, where, getDoc } from 'firebase/firestore';
+import { apiFetch } from './lib/api';
 import { AdminPanel } from './components/AdminPanel';
 
 const translations: Record<'en'|'zh', Record<string, string>> = {
@@ -201,7 +199,7 @@ export default function App() {
   const [lang, setLang] = useState<'en' | 'zh'>('zh'); // default to zh as requested implicitly by Chinese prompt
   const t = (key: string) => translations[lang][key] || key;
 
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<any>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [view, setView] = useState<'gateway' | 'admin'>('gateway');
   const [stats, setStats] = useState<any>(null);
@@ -220,15 +218,101 @@ export default function App() {
     setTimeout(() => setCopiedId(null), 2000);
   };
 
+  const [qrCode, setQrCode] = useState('');
+  const [setupOtpCode, setSetupOtpCode] = useState('');
+
+  const setupOtp = async () => {
+    try {
+      const data = await apiFetch('/auth/setup-otp', { method: 'POST' });
+      setQrCode(data.qrCode);
+    } catch(e: any) { alert(e.message || e); }
+  };
+
+  const confirmOtp = async () => {
+    try {
+      await apiFetch('/auth/confirm-otp', {
+        method: 'POST',
+        body: JSON.stringify({ code: setupOtpCode })
+      });
+      alert('OTP Enabled Successfully!');
+      setQrCode('');
+      setSetupOtpCode('');
+      // Force stats refresh
+      const data = await apiFetch('/stats');
+      setStats({...stats, tenantConfig: data.tenantConfig});
+    } catch(e: any) { alert(e.message || e); }
+  };
+
+  const disableOtp = async () => {
+    if (!confirm('Are you sure you want to disable 2FA?')) return;
+    try {
+      await apiFetch('/auth/disable-otp', { method: 'POST' });
+      alert('OTP Disabled');
+      const data = await apiFetch('/stats');
+      setStats({...stats, tenantConfig: data.tenantConfig});
+    } catch(e: any) { alert(e.message || e); }
+  };
+
+  const [emailInput, setEmailInput] = useState('');
+  const [passwordInput, setPasswordInput] = useState('');
+  const [otpInput, setOtpInput] = useState('');
+  const [authMode, setAuthMode] = useState<'login' | 'register' | 'otp'>('login');
+  const [tempToken, setTempToken] = useState('');
+  const [authLoading, setAuthLoading] = useState(false);
+
+  const submitAuth = async () => {
+    if (authLoading) return;
+    setAuthLoading(true);
+    try {
+       if (authMode === 'otp') {
+         const data = await apiFetch('/auth/verify-otp', {
+           method: 'POST',
+           body: JSON.stringify({ tempToken, code: otpInput })
+         });
+         localStorage.setItem('token', data.token);
+         setUser(data.user);
+         setIsAdmin(data.user.email === 'samlau0086@gmail.com');
+         setAuthLoading(false);
+         return;
+       }
+
+       const endpoint = authMode === 'register' ? '/auth/register' : '/auth/login';
+       const data = await apiFetch(endpoint, {
+         method: 'POST',
+         body: JSON.stringify({ email: emailInput, password: passwordInput })
+       });
+
+       if (data.requireOtp) {
+         setTempToken(data.tempToken);
+         setAuthMode('otp');
+       } else {
+         if (authMode === 'register') {
+           alert('Registration successful! You are now being logged in.');
+         }
+         localStorage.setItem('token', data.token);
+         setUser(data.user);
+         setIsAdmin(data.user.email === 'samlau0086@gmail.com');
+       }
+    } catch(e: any) {
+       alert(e.message || e);
+    }
+    setAuthLoading(false);
+  };
+
+  const logout = () => {
+     localStorage.removeItem('token');
+     setUser(null);
+     setIsAdmin(false);
+     setStats(null);
+  };
+
   useEffect(() => {
-    return onAuthStateChanged(auth, (u) => {
-      setUser(u);
-      if (u && u.email === 'samlau0086@gmail.com') {
-        setIsAdmin(true);
-      } else {
-        setIsAdmin(false);
-      }
-    });
+    if (localStorage.getItem('token')) {
+       // Mock restore since token is valid 7 days
+       const payload = JSON.parse(atob(localStorage.getItem('token')!.split('.')[1]));
+       setUser({ uid: payload.uid, email: payload.email });
+       setIsAdmin(payload.email === 'samlau0086@gmail.com');
+    }
   }, []);
 
   useEffect(() => {
@@ -237,69 +321,41 @@ export default function App() {
       return;
     }
     
-    const tenantRef = doc(db, 'tenants', user.uid);
-    getDoc(tenantRef).then(d => {
-      if(!d.exists()) {
-        const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(); // 7 days trial
-        setDoc(tenantRef, {
-           email: user.email,
-           strategy: 'random',
-           roundRobinIndex: 0,
-           apiKey: 'sk_test_' + Math.random().toString(36).substring(2, 10),
-           active: true,
-           expiresAt
-        });
-      }
-    });
-
-    const unsubs: any[] = [];
-    let currentStats = {
-      summary: { totalRevenue: 0, totalOrders: 0, pending: 0 },
-      pollingConfig: { rule: 'random' },
-      aSites: [] as any[],
-      bSites: [] as any[],
-      orders: [] as any[],
-      tenantConfig: {} as any
-    };
-    
-    const updateStats = () => setStats({ ...currentStats });
-
-    unsubs.push(onSnapshot(tenantRef, (d) => {
-       if (d.exists()) {
-           currentStats.pollingConfig.rule = d.data().strategy;
-           currentStats.tenantConfig = d.data();
+    let isSubscribed = true;
+    const fetchStats = async () => {
+       try {
+         const currentStats = await apiFetch('/stats');
+         if (isSubscribed) {
+           currentStats.summary = {
+             totalRevenue: currentStats.orders.filter((o:any)=>o.status==='paid').reduce((s:number,o:any)=>s+(o.amount||0), 0),
+             totalOrders: currentStats.orders.length,
+             pending: currentStats.orders.filter((o:any)=>o.status==='pending').length
+           };
+           setStats(currentStats);
+         }
+       } catch(e: any) {
+         console.error(e);
+         // If tenant is missing (e.g. DB reset), logout to prevent constant error popups/logs
+         if (e.message.includes('Tenant') || e.message.includes('Unauthorized') || e.message.includes('expire')) {
+            logout();
+         }
        }
-       updateStats();
-    }));
+    };
 
-    unsubs.push(onSnapshot(query(collection(db, 'aSites'), where('tenantId', '==', user.uid)), (snap) => {
-       currentStats.aSites = snap.docs.map(d => ({id: d.id, ...d.data()}));
-       updateStats();
-    }));
-
-    unsubs.push(onSnapshot(query(collection(db, 'bSites'), where('tenantId', '==', user.uid)), (snap) => {
-       currentStats.bSites = snap.docs.map(d => ({id: d.id, ...d.data()}));
-       updateStats();
-    }));
-
-    unsubs.push(onSnapshot(query(collection(db, 'orders'), where('tenantId', '==', user.uid)), (snap) => {
-       const orders = snap.docs.map(d => ({id: d.id, ...d.data()}));
-       orders.sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-       currentStats.orders = orders;
-       currentStats.summary.totalOrders = orders.length;
-       currentStats.summary.totalRevenue = orders.filter((o:any)=>o.status==='paid').reduce((s:number,o:any)=>s+(o.amount||0), 0);
-       currentStats.summary.pending = orders.filter((o:any)=>o.status==='pending').length;
-       updateStats();
-    }));
-
-    return () => unsubs.forEach(fn => fn());
+    fetchStats();
+    const interval = setInterval(fetchStats, 3000);
+    return () => { isSubscribed = false; clearInterval(interval); };
   }, [user]);
 
   const toggleBSite = async (id: string) => {
     const site = stats.bSites.find((s:any) => s.id === id);
-    if (site) {
-      await updateDoc(doc(db, 'bSites', id), { active: !site.active });
-    }
+    if (!site) return;
+    try {
+      await apiFetch(`/bsites/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify({ active: !site.active })
+      });
+    } catch(e) { console.error(e); }
   };
 
   const simulateACheckout = async (siteApiKey: string) => {
@@ -381,39 +437,45 @@ export default function App() {
 
   const addASite = async () => {
     if(!newASite.name || !newASite.domain || !user) return;
-    const aSiteRef = doc(collection(db, 'aSites'));
-    await setDoc(aSiteRef, {
-      tenantId: user.uid,
-      name: newASite.name,
-      domain: newASite.domain,
-      api_key: newASite.api_key || 'sk_a_' + Math.random().toString(36).substring(2)
+    await apiFetch('/asites', {
+      method: 'POST',
+      body: JSON.stringify({
+         id: 'site_' + Math.random().toString(36).substring(2),
+         name: newASite.name,
+         domain: newASite.domain,
+         api_key: newASite.api_key || 'sk_a_' + Math.random().toString(36).substring(2)
+      })
     });
     setNewASite({ name: '', domain: '', api_key: '' });
   };
 
   const deleteASite = async (id: string) => {
-    await deleteDoc(doc(db, 'aSites', id));
+    await apiFetch(`/asites/${id}`, { method: 'DELETE' });
   };
 
   const addBSite = async () => {
     if(!newBSite.name || !newBSite.domain || !user) return;
-    const bSiteRef = doc(collection(db, 'bSites'));
-    await setDoc(bSiteRef, {
-      tenantId: user.uid,
-      name: newBSite.name,
-      domain: newBSite.domain,
-      active: true
+    await apiFetch('/bsites', {
+      method: 'POST',
+      body: JSON.stringify({
+         id: 'site_' + Math.random().toString(36).substring(2),
+         name: newBSite.name,
+         domain: newBSite.domain
+      })
     });
     setNewBSite({ name: '', domain: '' });
   };
 
   const deleteBSite = async (id: string) => {
-    await deleteDoc(doc(db, 'bSites', id));
+    await apiFetch(`/bsites/${id}`, { method: 'DELETE' });
   };
 
   const changePollingRule = async (rule: string) => {
     if (!user) return;
-    await updateDoc(doc(db, 'tenants', user.uid), { strategy: rule });
+    await apiFetch(`/tenants/${user.uid}`, {
+       method: 'PUT',
+       body: JSON.stringify({ strategy: rule })
+    });
   };
 
   if (!user) {
@@ -425,9 +487,30 @@ export default function App() {
            </div>
            <h1 className="text-3xl font-black uppercase tracking-tighter mb-2 text-[#141414]">VortexPay</h1>
            <p className="text-sm font-mono tracking-widest uppercase text-slate-500 font-bold mb-8">System Gateway</p>
-           <Button onClick={loginWithGoogle} className="w-full bg-[#141414] hover:bg-black rounded-none h-12 uppercase font-bold tracking-widest text-white">
-              Log in to Router Platform
-           </Button>
+           
+           {authMode === 'otp' ? (
+              <div className="space-y-4" onKeyDown={e => e.key === 'Enter' && submitAuth()}>
+                 <p className="text-sm mb-4 font-bold">2FA Required: Enter your code</p>
+                 <Input value={otpInput} onChange={e => setOtpInput(e.target.value)} placeholder="000000" className="mb-4 rounded-none border-2 border-[#141414] font-mono text-center h-12 text-2xl tracking-[0.5em]" maxLength={6} autoFocus />
+                 <Button onClick={submitAuth} disabled={authLoading} className="w-full bg-[#141414] hover:bg-black rounded-none h-12 uppercase font-bold tracking-widest text-white mb-4">
+                    {authLoading ? <Activity className="w-5 h-5 animate-spin" /> : 'Verify OTP'}
+                 </Button>
+                 <Button variant="ghost" onClick={() => setAuthMode('login')} className="w-full text-xs uppercase font-bold">Cancel</Button>
+              </div>
+           ) : (
+              <div className="space-y-1" onKeyDown={e => e.key === 'Enter' && submitAuth()}>
+                 <Input value={emailInput} onChange={e => setEmailInput(e.target.value)} placeholder="Email address" className="mb-4 rounded-none border-2 border-[#141414] font-mono text-center h-12" />
+                 <Input type="password" value={passwordInput} onChange={e => setPasswordInput(e.target.value)} placeholder="Password" className="mb-6 rounded-none border-2 border-[#141414] font-mono text-center h-12" />
+                 
+                 <Button onClick={submitAuth} disabled={authLoading} className="w-full bg-[#141414] hover:bg-black rounded-none h-12 uppercase font-bold tracking-widest text-white mb-4">
+                    {authLoading ? <Activity className="w-5 h-5 animate-spin" /> : (authMode === 'login' ? 'Log in' : 'Register')}
+                 </Button>
+
+                 <Button variant="ghost" onClick={() => setAuthMode(authMode === 'login' ? 'register' : 'login')} className="w-full text-xs uppercase font-bold text-slate-500 hover:text-black">
+                    {authMode === 'login' ? "Don't have an account? Register" : "Already have an account? Log in"}
+                 </Button>
+              </div>
+           )}
         </div>
       </div>
     );
@@ -503,10 +586,11 @@ export default function App() {
 
       <main className="max-w-7xl mx-auto">
         <Tabs defaultValue="dashboard">
-          <TabsList className="mb-8 rounded-none border border-[#141414] bg-white p-0 h-auto">
+          <TabsList className="mb-8 rounded-none border border-[#141414] bg-white p-0 h-auto flex flex-wrap">
             <TabsTrigger value="dashboard" className="rounded-none data-[state=active]:bg-[#141414] data-[state=active]:text-white uppercase font-bold text-xs py-3 px-6"><Activity className="w-4 h-4 mr-2" /> {t('global_matrix')}</TabsTrigger>
             <TabsTrigger value="simulation" className="rounded-none data-[state=active]:bg-[#141414] data-[state=active]:text-white uppercase font-bold text-xs py-3 px-6"><ArrowRightLeft className="w-4 h-4 mr-2" /> {t('route_sim')}</TabsTrigger>
             <TabsTrigger value="config" className="rounded-none data-[state=active]:bg-[#141414] data-[state=active]:text-white uppercase font-bold text-xs py-3 px-6"><Settings className="w-4 h-4 mr-2" /> {t('config')}</TabsTrigger>
+            <TabsTrigger value="security" className="rounded-none data-[state=active]:bg-[#141414] data-[state=active]:text-white uppercase font-bold text-xs py-3 px-6"><ShieldCheck className="w-4 h-4 mr-2" /> Security</TabsTrigger>
             <TabsTrigger value="integration" className="rounded-none data-[state=active]:bg-[#141414] data-[state=active]:text-white uppercase font-bold text-xs py-3 px-6"><Code2 className="w-4 h-4 mr-2" /> {t('integration_tab')}</TabsTrigger>
           </TabsList>
 
@@ -857,6 +941,54 @@ export default function App() {
                 </div>
               </div>
             </div>
+          </TabsContent>
+
+          <TabsContent value="security" className="animate-in fade-in duration-500">
+             <div className="border-2 border-[#141414] bg-white p-6 shadow-[6px_6px_0_0_#141414] max-w-2xl">
+                <h2 className="text-xl font-black uppercase tracking-tight mb-4 flex items-center border-b-2 border-slate-200 pb-2 text-[#141414]">
+                  <ShieldAlert className="w-5 h-5 mr-3" /> Security Settings
+                </h2>
+
+                {tenantCfg.otpEnabled ? (
+                   <div className="space-y-4">
+                      <div className="p-4 bg-emerald-50 border border-emerald-200 text-emerald-800 font-mono text-sm">
+                         Two-Factor Authentication (OTP) is currently <strong className="font-bold uppercase tracking-widest text-emerald-900">Enabled</strong>.
+                      </div>
+                      <Button onClick={disableOtp} variant="destructive" className="rounded-none uppercase font-bold tracking-widest h-12 px-6">
+                         Disable 2FA
+                      </Button>
+                   </div>
+                ) : (
+                   <div className="space-y-6">
+                      <div className="p-4 bg-slate-50 border border-slate-200 text-slate-800 font-mono text-sm leading-relaxed">
+                         Two-Factor Authentication adds an extra layer of security to your account. We recommend using a TOTP app like Google Authenticator or Authy.
+                      </div>
+                      
+                      {!qrCode ? (
+                         <Button onClick={setupOtp} className="bg-[#141414] hover:bg-black text-white rounded-none uppercase tracking-widest font-bold h-12 px-6">
+                           Enable 2FA
+                         </Button>
+                      ) : (
+                         <div className="space-y-6 animate-in slide-in-from-bottom-4">
+                            <div className="flex flex-col sm:flex-row gap-6">
+                               <img src={qrCode} alt="OTP QR Code" className="w-[180px] h-[180px] border-2 border-[#141414] shadow-[4px_4px_0_0_#141414]" />
+                               <div>
+                                  <h3 className="font-bold uppercase tracking-widest text-[#141414] mb-2 text-sm">1. Scan QR Code</h3>
+                                  <p className="text-sm font-serif italic text-slate-500 mb-4">Open your authenticator app and scan the barcode on the left.</p>
+                                  <h3 className="font-bold uppercase tracking-widest text-[#141414] mb-2 text-sm">2. Enter OTP Code</h3>
+                                  <div className="flex gap-2 isolate">
+                                     <Input value={setupOtpCode} onChange={e => setSetupOtpCode(e.target.value)} placeholder="000000" className="w-32 rounded-none border-2 border-[#141414] font-mono h-12 text-center text-xl tracking-widest" maxLength={6} />
+                                     <Button onClick={confirmOtp} className="h-12 border-2 border-[#141414] rounded-none uppercase tracking-widest font-bold bg-[#141414] text-white hover:bg-white hover:text-black hover:border-black transition-colors w-32">
+                                        Verify
+                                     </Button>
+                                  </div>
+                               </div>
+                            </div>
+                         </div>
+                      )}
+                   </div>
+                )}
+             </div>
           </TabsContent>
 
           <TabsContent value="integration" className="animate-in fade-in duration-500">

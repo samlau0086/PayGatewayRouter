@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { collection, onSnapshot, doc, updateDoc, setDoc, deleteDoc, getDocs, query, where } from 'firebase/firestore';
-import { db } from '../lib/firebase';
+import { apiFetch } from '../lib/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ShieldCheck, ArrowLeft, MoreVertical, Calendar, Plus, Trash2 } from 'lucide-react';
@@ -12,63 +11,54 @@ export function AdminPanel({ onBack }: { onBack: () => void }) {
   const [newDays, setNewDays] = useState('7');
 
   useEffect(() => {
-    const unsub = onSnapshot(collection(db, 'tenants'), (snap) => {
-      setTenants(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-    });
-    return () => unsub();
+    let active = true;
+    const fetchIt = async () => {
+      try {
+        const data = await apiFetch('/admin/tenants');
+        if (active) setTenants(data);
+      } catch (e: any) { 
+        console.error(e); 
+        if (e.message.includes('Unauthorized') || e.message.includes('Tenant')) {
+          window.location.reload(); // Quickest way to reset app state from deep child
+        }
+      }
+    };
+    fetchIt();
+    const int = setInterval(fetchIt, 3000);
+    return () => { active = false; clearInterval(int); };
   }, []);
 
   const updateExpiry = async (id: string, days: number) => {
     const tenant = tenants.find(t => t.id === id);
     const currentExpiry = tenant?.expiresAt ? new Date(tenant.expiresAt).getTime() : Date.now();
     const newExpiry = new Date(currentExpiry + days * 24 * 60 * 60 * 1000).toISOString();
-    await updateDoc(doc(db, 'tenants', id), { expiresAt: newExpiry, active: true });
+    await apiFetch(`/tenants/${id}`, { method: 'PUT', body: JSON.stringify({ expiresAt: newExpiry, active: true }) });
   };
 
   const toggleStatus = async (id: string, currentStatus: boolean) => {
-    await updateDoc(doc(db, 'tenants', id), { active: !currentStatus });
+    await apiFetch(`/tenants/${id}`, { method: 'PUT', body: JSON.stringify({ active: !currentStatus }) });
   };
 
   const addTenant = async () => {
     if (!newEmail) return;
     const expiresAt = new Date(Date.now() + parseInt(newDays) * 24 * 60 * 60 * 1000).toISOString();
-    // Simulate a random UID since we can't create Auth users directly from client SDK easily
-    const tempUid = 'sys_' + Math.random().toString(36).substring(2, 12);
-    
-    await setDoc(doc(db, 'tenants', tempUid), {
-      email: newEmail,
-      strategy: 'random',
-      roundRobinIndex: 0,
-      apiKey: 'sk_test_' + Math.random().toString(36).substring(2, 10),
-      active: true,
-      expiresAt: expiresAt
+    await apiFetch('/admin/tenants', {
+       method: 'POST',
+       body: JSON.stringify({
+         email: newEmail,
+         strategy: 'random',
+         roundRobinIndex: 0,
+         apiKey: 'sk_test_' + Math.random().toString(36).substring(2, 10),
+         active: true,
+         expiresAt
+       })
     });
     setNewEmail('');
   };
 
   const deleteTenant = async (id: string) => {
     if (!confirm('Are you sure you want to delete this tenant and all their sites?')) return;
-    
-    // Delete A Sites
-    const aSitesSnap = await getDocs(query(collection(db, 'aSites'), where('tenantId', '==', id)));
-    for (const docSnap of aSitesSnap.docs) {
-      await deleteDoc(docSnap.ref);
-    }
-    
-    // Delete B Sites
-    const bSitesSnap = await getDocs(query(collection(db, 'bSites'), where('tenantId', '==', id)));
-    for (const docSnap of bSitesSnap.docs) {
-      await deleteDoc(docSnap.ref);
-    }
-
-    // Delete Orders
-    const ordersSnap = await getDocs(query(collection(db, 'orders'), where('tenantId', '==', id)));
-    for (const docSnap of ordersSnap.docs) {
-      await deleteDoc(docSnap.ref);
-    }
-
-    // Delete Tenant
-    await deleteDoc(doc(db, 'tenants', id));
+    await apiFetch(`/admin/tenants/${id}`, { method: 'DELETE' });
   };
 
   return (
@@ -141,7 +131,7 @@ export function AdminPanel({ onBack }: { onBack: () => void }) {
                  <tbody className="divide-y divide-[#141414]">
                     {tenants.map(tenant => {
                        const isExpired = tenant.expiresAt && new Date(tenant.expiresAt).getTime() < Date.now();
-                       const statusStr = tenant.active === false ? 'DISABLED' : (isExpired ? 'EXPIRED' : 'ACTIVE');
+                       const statusStr = tenant.active ? (isExpired ? 'EXPIRED' : 'ACTIVE') : 'DISABLED';
                        
                        return (
                          <tr key={tenant.id} className="hover:bg-slate-50 transition-colors group">
@@ -158,7 +148,7 @@ export function AdminPanel({ onBack }: { onBack: () => void }) {
                               {tenant.expiresAt ? new Date(tenant.expiresAt).toLocaleDateString() + ' ' + new Date(tenant.expiresAt).toLocaleTimeString() : 'No expiry set'}
                            </td>
                            <td className="p-3 flex gap-2 justify-end">
-                              <Select onValueChange={(val) => updateExpiry(tenant.id, parseInt(val))}>
+                              <Select onValueChange={(val: string) => updateExpiry(tenant.id, parseInt(val))}>
                                 <SelectTrigger className="w-[110px] h-8 text-[10px] rounded-none border-[#141414] uppercase font-bold">
                                   <SelectValue placeholder="Add Time" />
                                 </SelectTrigger>
@@ -172,9 +162,9 @@ export function AdminPanel({ onBack }: { onBack: () => void }) {
                                 variant="outline" 
                                 size="sm" 
                                 className="h-8 rounded-none border-[#141414] text-[10px] uppercase font-bold w-[70px]"
-                                onClick={() => toggleStatus(tenant.id, tenant.active !== false)}
+                                onClick={() => toggleStatus(tenant.id, !!tenant.active)}
                               >
-                                {tenant.active !== false ? 'Disable' : 'Enable'}
+                                {tenant.active ? 'Disable' : 'Enable'}
                               </Button>
                               <Button 
                                 variant="destructive" 
