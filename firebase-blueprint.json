@@ -1,0 +1,76 @@
+{
+  "entities": {
+    "Tenant": {
+      "title": "Tenant",
+      "description": "A merchant or platform user running the router.",
+      "type": "object",
+      "properties": {
+        "email": { "type": "string" },
+        "strategy": { "type": "string", "enum": ["random", "round_robin"] },
+        "roundRobinIndex": { "type": "number" },
+        "apiKey": { "type": "string" }
+      },
+      "required": ["email", "strategy", "apiKey", "roundRobinIndex"]
+    },
+    "ASite": {
+      "title": "A Site",
+      "description": "Ingress WooCommerce Site",
+      "type": "object",
+      "properties": {
+        "tenantId": { "type": "string" },
+        "name": { "type": "string" },
+        "domain": { "type": "string" }
+      },
+      "required": ["tenantId", "name", "domain"]
+    },
+    "BSite": {
+      "title": "B Site",
+      "description": "Egress WooCommerce Gateway",
+      "type": "object",
+      "properties": {
+        "tenantId": { "type": "string" },
+        "name": { "type": "string" },
+        "domain": { "type": "string" }
+      },
+      "required": ["tenantId", "name", "domain"]
+    },
+    "Order": {
+      "title": "Order",
+      "description": "A synchronized transaction",
+      "type": "object",
+      "properties": {
+        "tenantId": { "type": "string" },
+        "sysOrderId": { "type": "string" },
+        "aSiteId": { "type": "string" },
+        "aSiteOrderId": { "type": "string" },
+        "bSiteId": { "type": "string" },
+        "bSiteOrderId": { "type": "string" },
+        "amount": { "type": "number" },
+        "currency": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "paid", "failed", "refunded", "cancelled"] },
+        "syncToAStatus": { "type": "string" },
+        "syncToBStatus": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["tenantId", "sysOrderId", "status", "syncToAStatus", "syncToBStatus"]
+    }
+  },
+  "firestore": {
+    "/tenants/{tenantId}": {
+      "schema": { "$ref": "#/entities/Tenant" },
+      "description": "Tenants representing merchants."
+    },
+    "/aSites/{aSiteId}": {
+      "schema": { "$ref": "#/entities/ASite" },
+      "description": "A Sites belonging to tenants."
+    },
+    "/bSites/{bSiteId}": {
+      "schema": { "$ref": "#/entities/BSite" },
+      "description": "B Sites belonging to tenants."
+    },
+    "/orders/{orderId}": {
+      "schema": { "$ref": "#/entities/Order" },
+      "description": "Orders belonging to tenants."
+    }
+  }
+}

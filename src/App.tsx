@@ -8,11 +8,15 @@ import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
-import { ShieldAlert, ServerCog, Activity, ShieldCheck, CreditCard, ExternalLink, ArrowRightLeft, Radio, Network, Settings, Trash2, Plus, Globe, Code2 } from 'lucide-react';
+import { ShieldAlert, ServerCog, Activity, ShieldCheck, CreditCard, ExternalLink, ArrowRightLeft, Radio, Network, Settings, Trash2, Plus,Globe, Code2, LogOut, Copy, Check } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { pluginA, pluginB } from './lib/plugin-templates';
 import JSZip from 'jszip';
+import { auth, db, loginWithGoogle, logout } from './lib/firebase';
+import { onAuthStateChanged, User } from 'firebase/auth';
+import { collection, doc, onSnapshot, setDoc, updateDoc, deleteDoc, query, where, getDoc } from 'firebase/firestore';
+import { AdminPanel } from './components/AdminPanel';
 
 const translations: Record<'en'|'zh', Record<string, string>> = {
   en: {
@@ -197,6 +201,9 @@ export default function App() {
   const [lang, setLang] = useState<'en' | 'zh'>('zh'); // default to zh as requested implicitly by Chinese prompt
   const t = (key: string) => translations[lang][key] || key;
 
+  const [user, setUser] = useState<User | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [view, setView] = useState<'gateway' | 'admin'>('gateway');
   const [stats, setStats] = useState<any>(null);
   const [simLoading, setSimLoading] = useState(false);
   const [paymentUrl, setPaymentUrl] = useState('');
@@ -205,26 +212,94 @@ export default function App() {
   // Forms state
   const [newASite, setNewASite] = useState({ name: '', domain: '', api_key: '' });
   const [newBSite, setNewBSite] = useState({ name: '', domain: '' });
+  const [copiedId, setCopiedId] = useState<string | null>(null);
 
-  const fetchStats = async () => {
-    try {
-      const res = await fetch('/api/admin/stats');
-      const data = await res.json();
-      setStats(data);
-    } catch (err) {
-      console.error(err);
-    }
+  const handleCopy = (id: string, text: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedId(id);
+    setTimeout(() => setCopiedId(null), 2000);
   };
 
   useEffect(() => {
-    fetchStats();
-    const interval = setInterval(fetchStats, 3000); // Polling for demo live updates
-    return () => clearInterval(interval);
+    return onAuthStateChanged(auth, (u) => {
+      setUser(u);
+      if (u && u.email === 'samlau0086@gmail.com') {
+        setIsAdmin(true);
+      } else {
+        setIsAdmin(false);
+      }
+    });
   }, []);
 
+  useEffect(() => {
+    if (!user) {
+      setStats(null);
+      return;
+    }
+    
+    const tenantRef = doc(db, 'tenants', user.uid);
+    getDoc(tenantRef).then(d => {
+      if(!d.exists()) {
+        const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(); // 7 days trial
+        setDoc(tenantRef, {
+           email: user.email,
+           strategy: 'random',
+           roundRobinIndex: 0,
+           apiKey: 'sk_test_' + Math.random().toString(36).substring(2, 10),
+           active: true,
+           expiresAt
+        });
+      }
+    });
+
+    const unsubs: any[] = [];
+    let currentStats = {
+      summary: { totalRevenue: 0, totalOrders: 0, pending: 0 },
+      pollingConfig: { rule: 'random' },
+      aSites: [] as any[],
+      bSites: [] as any[],
+      orders: [] as any[],
+      tenantConfig: {} as any
+    };
+    
+    const updateStats = () => setStats({ ...currentStats });
+
+    unsubs.push(onSnapshot(tenantRef, (d) => {
+       if (d.exists()) {
+           currentStats.pollingConfig.rule = d.data().strategy;
+           currentStats.tenantConfig = d.data();
+       }
+       updateStats();
+    }));
+
+    unsubs.push(onSnapshot(query(collection(db, 'aSites'), where('tenantId', '==', user.uid)), (snap) => {
+       currentStats.aSites = snap.docs.map(d => ({id: d.id, ...d.data()}));
+       updateStats();
+    }));
+
+    unsubs.push(onSnapshot(query(collection(db, 'bSites'), where('tenantId', '==', user.uid)), (snap) => {
+       currentStats.bSites = snap.docs.map(d => ({id: d.id, ...d.data()}));
+       updateStats();
+    }));
+
+    unsubs.push(onSnapshot(query(collection(db, 'orders'), where('tenantId', '==', user.uid)), (snap) => {
+       const orders = snap.docs.map(d => ({id: d.id, ...d.data()}));
+       orders.sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+       currentStats.orders = orders;
+       currentStats.summary.totalOrders = orders.length;
+       currentStats.summary.totalRevenue = orders.filter((o:any)=>o.status==='paid').reduce((s:number,o:any)=>s+(o.amount||0), 0);
+       currentStats.summary.pending = orders.filter((o:any)=>o.status==='pending').length;
+       updateStats();
+    }));
+
+    return () => unsubs.forEach(fn => fn());
+  }, [user]);
+
   const toggleBSite = async (id: string) => {
-    await fetch(`/api/admin/sites/b/${id}/toggle`, { method: 'POST' });
-    fetchStats();
+    const site = stats.bSites.find((s:any) => s.id === id);
+    if (site) {
+      await updateDoc(doc(db, 'bSites', id), { active: !site.active });
+    }
   };
 
   const simulateACheckout = async (siteApiKey: string) => {
@@ -253,7 +328,6 @@ export default function App() {
       console.error(err);
     }
     setSimLoading(false);
-    fetchStats();
   };
 
   const simulateBWebhook = async (status: string) => {
@@ -267,10 +341,6 @@ export default function App() {
           status: status
         })
       });
-      // Do NOT clear sysOrder if we want to also test refund later on the same order
-      // setPaymentUrl('');
-      // setSysOrder('');
-      fetchStats();
     } catch(err) {
       console.error(err);
     }
@@ -288,7 +358,6 @@ export default function App() {
           source: 'woocommerce_admin'
         })
       });
-      fetchStats();
     } catch(err) {
       console.error(err);
     }
@@ -311,47 +380,93 @@ export default function App() {
   };
 
   const addASite = async () => {
-    if(!newASite.name || !newASite.domain) return;
-    await fetch('/api/admin/sites/a', {
-       method: 'POST',
-       headers: { 'Content-Type': 'application/json' },
-       body: JSON.stringify(newASite)
+    if(!newASite.name || !newASite.domain || !user) return;
+    const aSiteRef = doc(collection(db, 'aSites'));
+    await setDoc(aSiteRef, {
+      tenantId: user.uid,
+      name: newASite.name,
+      domain: newASite.domain,
+      api_key: newASite.api_key || 'sk_a_' + Math.random().toString(36).substring(2)
     });
     setNewASite({ name: '', domain: '', api_key: '' });
-    fetchStats();
   };
 
   const deleteASite = async (id: string) => {
-    await fetch(`/api/admin/sites/a/${id}`, { method: 'DELETE' });
-    fetchStats();
+    await deleteDoc(doc(db, 'aSites', id));
   };
 
   const addBSite = async () => {
-    if(!newBSite.name || !newBSite.domain) return;
-    await fetch('/api/admin/sites/b', {
-       method: 'POST',
-       headers: { 'Content-Type': 'application/json' },
-       body: JSON.stringify(newBSite)
+    if(!newBSite.name || !newBSite.domain || !user) return;
+    const bSiteRef = doc(collection(db, 'bSites'));
+    await setDoc(bSiteRef, {
+      tenantId: user.uid,
+      name: newBSite.name,
+      domain: newBSite.domain,
+      active: true
     });
     setNewBSite({ name: '', domain: '' });
-    fetchStats();
   };
 
   const deleteBSite = async (id: string) => {
-    await fetch(`/api/admin/sites/b/${id}`, { method: 'DELETE' });
-    fetchStats();
+    await deleteDoc(doc(db, 'bSites', id));
   };
 
   const changePollingRule = async (rule: string) => {
-    await fetch('/api/admin/config/polling', {
-       method: 'POST',
-       headers: { 'Content-Type': 'application/json' },
-       body: JSON.stringify({ rule })
-    });
-    fetchStats();
+    if (!user) return;
+    await updateDoc(doc(db, 'tenants', user.uid), { strategy: rule });
   };
 
+  if (!user) {
+    return (
+      <div className="min-h-screen bg-[#F5F5F3] flex items-center justify-center font-sans">
+        <div className="bg-white p-8 border-2 border-[#141414] shadow-[8px_8px_0_0_#141414] max-w-md w-full text-center">
+           <div className="bg-[#141414] text-white w-16 h-16 flex items-center justify-center mx-auto mb-6 transform rotate-3 shadow-lg">
+             <ServerCog className="w-10 h-10" />
+           </div>
+           <h1 className="text-3xl font-black uppercase tracking-tighter mb-2 text-[#141414]">VortexPay</h1>
+           <p className="text-sm font-mono tracking-widest uppercase text-slate-500 font-bold mb-8">System Gateway</p>
+           <Button onClick={loginWithGoogle} className="w-full bg-[#141414] hover:bg-black rounded-none h-12 uppercase font-bold tracking-widest text-white">
+              Log in to Router Platform
+           </Button>
+        </div>
+      </div>
+    );
+  }
+
+  if (view === 'admin' && isAdmin) {
+    return <AdminPanel onBack={() => setView('gateway')} />;
+  }
+
   if (!stats) return <div className="min-h-screen bg-[#111111] flex items-center justify-center text-slate-400 font-mono text-sm">{t('init_core')}</div>;
+
+  const tenantCfg = stats.tenantConfig || {};
+  const isExpired = tenantCfg.expiresAt && new Date(tenantCfg.expiresAt).getTime() < Date.now();
+  const isDisabled = tenantCfg.active === false;
+
+  if (isDisabled || isExpired) {
+    return (
+      <div className="min-h-screen bg-[#F5F5F3] flex items-center justify-center font-sans">
+        <div className="bg-white p-8 border-2 border-[#141414] shadow-[8px_8px_0_0_#141414] max-w-md w-full text-center">
+           <div className="bg-red-500 text-white w-16 h-16 flex items-center justify-center mx-auto mb-6 transform rotate-3 shadow-lg">
+             <ShieldAlert className="w-10 h-10" />
+           </div>
+           <h1 className="text-3xl font-black uppercase tracking-tighter mb-2 text-[#141414]">Access Denied</h1>
+           <p className="text-sm font-mono text-slate-600 mb-8 mt-4">
+              {isDisabled ? 'Your account has been disabled.' : 'Your subscription has expired.'} <br/>
+              Please contact the administrator to renew your service.
+           </p>
+           {isAdmin && (
+             <Button onClick={() => setView('admin')} className="w-full bg-[#141414] hover:bg-black text-white rounded-none uppercase tracking-widest font-bold h-12 mb-4">
+               Go To Admin Panel
+             </Button>
+           )}
+           <Button variant="outline" onClick={logout} className="w-full rounded-none h-12 uppercase font-bold tracking-widest border-[#141414]">
+              Logout
+           </Button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#F5F5F3] text-[#141414] font-sans p-6 selection:bg-[#141414] selection:text-white">
@@ -365,15 +480,23 @@ export default function App() {
             <p className="text-sm font-mono tracking-widest uppercase text-slate-500 font-bold">{t('subtitle')}</p>
           </div>
         </div>
-        <div className="text-right flex items-center gap-4">
+        <div className="text-right flex items-center gap-4 flex-wrap justify-end">
+          {isAdmin && (
+            <Button variant="default" size="sm" onClick={() => setView('admin')} className="rounded-none font-bold bg-indigo-600 hover:bg-indigo-700 text-white uppercase text-[10px]">
+               <ShieldCheck className="w-3 h-3 mr-2" /> SaaS Admin
+            </Button>
+          )}
           <Button variant="outline" size="sm" onClick={() => setLang(lang === 'en' ? 'zh' : 'en')} className="rounded-none font-bold border-[#141414] uppercase text-[10px]">
              <Globe className="w-3 h-3 mr-2" /> {t('lang')}
+          </Button>
+          <Button variant="outline" size="sm" onClick={logout} className="rounded-none font-bold border-[#141414] uppercase text-[10px]">
+             <LogOut className="w-3 h-3 mr-2" /> Logout
           </Button>
           <div className="hidden sm:block">
             <div className="flex items-center justify-end text-emerald-600 font-mono text-xs mb-1 font-bold">
               <Radio className="w-3 h-3 mr-1 animate-pulse" /> {t('sys_online')}
             </div>
-            <div className="text-[10px] uppercase font-mono text-slate-400">{t('node')}: us-central1-a</div>
+            <div className="text-[10px] uppercase font-mono text-slate-400">{user.email}</div>
           </div>
         </div>
       </header>
@@ -646,14 +769,25 @@ export default function App() {
 
                 <div className="space-y-3">
                   {stats.aSites.map((a: any) => (
-                    <div key={a.id} className="p-3 border border-slate-200 flex items-center justify-between group hover:border-red-300">
-                       <div>
-                         <div className="font-bold text-sm uppercase">{a.name}</div>
-                         <div className="text-xs font-mono text-slate-500">{a.domain}</div>
+                    <div key={a.id} className="p-4 border border-slate-200 group hover:border-red-300">
+                       <div className="flex items-start justify-between mb-3">
+                         <div>
+                           <div className="font-bold text-sm uppercase">{a.name}</div>
+                           <div className="text-xs font-mono text-slate-500">{a.domain}</div>
+                         </div>
+                         <Button variant="ghost" size="icon" onClick={() => deleteASite(a.id)} className="text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-none h-8 w-8">
+                           <Trash2 className="w-4 h-4" />
+                         </Button>
                        </div>
-                       <Button variant="ghost" size="icon" onClick={() => deleteASite(a.id)} className="text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-none h-8 w-8">
-                         <Trash2 className="w-4 h-4" />
-                       </Button>
+                       <div>
+                         <div className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-1">API Key</div>
+                         <div className="flex items-center gap-2">
+                           <input type="text" readOnly value={a.api_key} className="w-full text-xs font-mono bg-slate-50 px-2 py-1.5 outline-none border border-transparent focus:border-red-200 text-slate-600" />
+                           <Button size="icon" variant="outline" className={`h-7 w-7 rounded-none shrink-0 border-slate-200 transition-colors ${copiedId === a.id ? 'bg-emerald-50 text-emerald-600 border-emerald-200' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-700'}`} onClick={() => handleCopy(a.id, a.api_key)}>
+                             {copiedId === a.id ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                           </Button>
+                         </div>
+                       </div>
                     </div>
                   ))}
                 </div>
@@ -745,7 +879,7 @@ export default function App() {
                  <div className="space-y-6">
                    <div>
                      <h3 className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-2">{t('req_format')} (<span className="text-[#141414]">/api/gateway/checkout</span>)</h3>
-                     <pre className="bg-[#141414] text-emerald-400 p-4 font-mono text-[10px] sm:text-xs overflow-x-auto shadow-inner rounded-none">
+                     <pre className="bg-[#141414] text-emerald-400 p-4 font-mono text-[10px] sm:text-xs overflow-x-auto shadow-inner rounded-none mb-4">
 {`{
   "api_key": "YOUR_A_SITE_KEY",
   "order_id": "wc_1029",
@@ -754,6 +888,13 @@ export default function App() {
   "items": ["Product Name"]
 }`}
                      </pre>
+                     
+                     <div className="p-4 bg-slate-50 border-l-4 border-red-600 mb-6">
+                        <h4 className="text-xs font-bold uppercase tracking-widest text-[#141414] mb-2">How Does Routing Work Without a User ID?</h4>
+                        <p className="text-xs font-sans text-slate-600 leading-relaxed">
+                          When your A Site sends a checkout request, it includes its unique <code className="font-mono bg-white border border-slate-200 px-1 py-0.5 text-[#141414] rounded-sm">api_key</code>. The router securely looks up which owner/tenant this A Site belongs to and automatically applies that specific user's load-balancing and routing rules. <br/><br/>No user identifier is needed in the API payload, which keeps your requests simpler and your core identity secure.
+                        </p>
+                     </div>
                    </div>
                    <div>
                      <h3 className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-2">{t('resp_format')}</h3>
