@@ -55,7 +55,7 @@ function vortexpay_init_gateway_class() {
                 'router_url' => array(
                     'title'   => 'Router URL',
                     'type'    => 'text',
-                    'default' => 'https://yourapp.something.run.app'
+                    'default' => 'VORTEXPAY_ROUTER_URL_PLACEHOLDER'
                 ),
                 'api_key' => array(
                     'title'   => 'API Key',
@@ -206,7 +206,7 @@ function vortexpay_b_settings_page() {
         update_option('vortexpay_router_url', sanitize_text_field($_POST['vortexpay_router_url']));
         echo '<div class="updated"><p>Saved successfully.</p></div>';
     }
-    $url = get_option('vortexpay_router_url', '');
+    $url = get_option('vortexpay_router_url', 'VORTEXPAY_ROUTER_URL_PLACEHOLDER');
     echo '<div class="wrap"><h1>Site B Settings</h1><form method="POST"><p>Enter your VortexPay Router API URL below to enable webhook callbacks.</p><label>Router URL: </label><input type="text" name="vortexpay_router_url" value="'.esc_attr($url).'" style="width:300px;" placeholder="https://your-app.run.app"/><br><br><input type="submit" class="button button-primary" value="Save"/></form></div>';
 }
 

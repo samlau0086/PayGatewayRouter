@@ -509,7 +509,11 @@ function VortexPayApp() {
     const zip = new JSZip();
     const folderName = filename.replace('.zip', '');
     const folder = zip.folder(folderName);
-    if(folder) folder.file(`${folderName}.php`, phpContent);
+    
+    // Replace placeholder with actual location
+    const finalizedContent = phpContent.replace(/VORTEXPAY_ROUTER_URL_PLACEHOLDER/g, window.location.origin);
+    
+    if(folder) folder.file(`${folderName}.php`, finalizedContent);
     const blob = await zip.generateAsync({ type: 'blob' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
