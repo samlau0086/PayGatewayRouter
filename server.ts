@@ -506,7 +506,7 @@ async function startServer() {
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).run(sysOrderId, tenantRow.id, aSiteRow.id, String(order_id), bSite.id, bSiteOrderId, amount, currency || 'USD', 'pending', 'pending', 'pending', new Date().toISOString());
       
-      const paymentUrl = `https://${bSite.domain}/secure-checkout?ref=${sysOrderId}`;
+      const paymentUrl = `https://${bSite.domain}/?vortexpay_sys_id=${sysOrderId}&amount=${amount}`;
       console.log('[GATEWAY] Success. Created order:', sysOrderId, 'Redirecting to:', paymentUrl);
       res.json({ success: true, paymentUrl, sysOrderId });
     } catch (err: any) {
