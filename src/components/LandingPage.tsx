@@ -169,8 +169,25 @@ export const LandingPage = () => {
   const [lang, setLang] = useState<'zh' | 'en'>('zh');
   const t = (key: keyof typeof translations['zh']) => translations[lang][key];
 
+  const structuredData = {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    "name": "VortexPay",
+    "operatingSystem": "Web, Private Server",
+    "applicationCategory": "FintechApplication",
+    "offers": {
+      "@type": "AggregateOffer",
+      "lowPrice": "39",
+      "priceCurrency": "USD"
+    },
+    "description": translations[lang].heroSub
+  };
+
   return (
     <div className="min-h-screen bg-slate-50 font-sans selection:bg-indigo-500 selection:text-white">
+      <script type="application/ld+json">
+        {JSON.stringify(structuredData)}
+      </script>
       {/* Navigation */}
       <nav className="sticky top-0 z-50 bg-white/80 backdrop-blur-md border-b border-slate-200 px-6 py-4">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
@@ -258,10 +275,10 @@ export const LandingPage = () => {
         <div className="max-w-7xl mx-auto px-6">
           <p className="text-center text-slate-400 text-sm font-bold mb-12 uppercase tracking-widest">{t('statsTitle')}</p>
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-8 items-center justify-items-center opacity-60 grayscale hover:grayscale-0 transition-all duration-500">
-             <img src="https://upload.wikimedia.org/wikipedia/commons/b/ba/Stripe_Logo%2C_revised_2016.svg" alt="Partner" className="h-8" />
-             <img src="https://upload.wikimedia.org/wikipedia/commons/b/b5/PayPal.svg" alt="Partner" className="h-8" />
-             <img src="https://upload.wikimedia.org/wikipedia/commons/b/b5/Visa_2014_logo_detail.svg" alt="Partner" className="h-8" />
-             <img src="https://upload.wikimedia.org/wikipedia/commons/2/2a/Mastercard-logo.svg" alt="Partner" className="h-8" />
+             <img src="https://upload.wikimedia.org/wikipedia/commons/b/ba/Stripe_Logo%2C_revised_2016.svg" alt="Stripe Payment Logo" className="h-8" />
+             <img src="https://upload.wikimedia.org/wikipedia/commons/b/b5/PayPal.svg" alt="PayPal Payment Logo" className="h-8" />
+             <img src="https://upload.wikimedia.org/wikipedia/commons/b/b5/Visa_2014_logo_detail.svg" alt="Visa Card Logo" className="h-8" />
+             <img src="https://upload.wikimedia.org/wikipedia/commons/2/2a/Mastercard-logo.svg" alt="Mastercard Card Logo" className="h-8" />
           </div>
           
           <div className="mt-24 grid grid-cols-1 md:grid-cols-3 gap-12 text-center">
