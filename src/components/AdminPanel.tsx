@@ -2,13 +2,25 @@ import React, { useEffect, useState } from 'react';
 import { apiFetch } from '../lib/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { ShieldCheck, ArrowLeft, MoreVertical, Calendar, Plus, Trash2 } from 'lucide-react';
+import { ShieldCheck, ArrowLeft, MoreVertical, Calendar, Plus, Trash2, Settings, Mail, Save } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { toast } from 'sonner';
 
 export function AdminPanel({ onBack }: { onBack: () => void }) {
   const [tenants, setTenants] = useState<any[]>([]);
+  const [tab, setTab] = useState<'tenants' | 'settings'>('tenants');
   const [newEmail, setNewEmail] = useState('');
   const [newDays, setNewDays] = useState('7');
+  
+  // Settings state
+  const [smtpConfig, setSmtpConfig] = useState<Record<string, string>>({
+    smtp_host: '',
+    smtp_port: '587',
+    smtp_user: '',
+    smtp_pass: '',
+    smtp_from: '',
+    smtp_secure: 'false'
+  });
 
   useEffect(() => {
     let active = true;
@@ -27,6 +39,26 @@ export function AdminPanel({ onBack }: { onBack: () => void }) {
     const int = setInterval(fetchIt, 3000);
     return () => { active = false; clearInterval(int); };
   }, []);
+
+  useEffect(() => {
+    if (tab === 'settings') {
+      apiFetch('/admin/settings').then(data => {
+        const config: Record<string, string> = {};
+        data.forEach((s: any) => config[s.key] = s.value);
+        setSmtpConfig(prev => ({ ...prev, ...config }));
+      }).catch(e => toast.error('Failed to load settings'));
+    }
+  }, [tab]);
+
+  const saveSettings = async () => {
+    try {
+      const payload = Object.entries(smtpConfig).map(([key, value]) => ({ key, value }));
+      await apiFetch('/admin/settings', { method: 'POST', body: JSON.stringify(payload) });
+      toast.success('System settings updated');
+    } catch (e) {
+      toast.error('Failed to save settings');
+    }
+  };
 
   const updateExpiry = async (id: string, days: number) => {
     const tenant = tenants.find(t => t.id === id);
@@ -71,118 +103,220 @@ export function AdminPanel({ onBack }: { onBack: () => void }) {
            <div className="bg-[#141414] text-white w-8 h-8 flex items-center justify-center mr-3 rounded-sm">
              <ShieldCheck className="w-5 h-5" />
            </div>
-           <div>
-             <h1 className="text-xl font-black uppercase tracking-tighter text-[#141414]">SaaS Admin</h1>
-             <div className="text-[10px] uppercase font-mono text-slate-500 font-bold tracking-widest">Superuser Dashboard</div>
-           </div>
-        </div>
-      </header>
-
-      <main className="max-w-6xl mx-auto p-6 space-y-6">
-         
-         <div className="bg-white border-2 border-[#141414] shadow-[4px_4px_0_0_#141414] p-6 mb-6">
-            <h2 className="text-lg font-black uppercase tracking-tighter mb-4 flex items-center">
-               <Plus className="w-5 h-5 mr-2" /> Add New Tenant
-            </h2>
-            <div className="flex gap-4 items-end">
-               <div className="flex-1">
-                 <label className="text-xs font-bold uppercase tracking-widest mb-2 block">Email / Identifier</label>
-                 <Input 
-                   value={newEmail} 
-                   onChange={e => setNewEmail(e.target.value)} 
-                   placeholder="user@example.com"
-                   className="rounded-none border-2 border-[#141414]"
-                 />
-               </div>
-               <div>
-                 <label className="text-xs font-bold uppercase tracking-widest mb-2 block">Initial Trial</label>
-                 <Select value={newDays} onValueChange={setNewDays}>
-                    <SelectTrigger className="w-[150px] rounded-none border-2 border-[#141414]">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent className="rounded-none border-2 border-[#141414]">
-                      <SelectItem value="7">7 Days</SelectItem>
-                      <SelectItem value="14">14 Days</SelectItem>
-                      <SelectItem value="30">30 Days</SelectItem>
-                      <SelectItem value="365">1 Year</SelectItem>
-                    </SelectContent>
-                 </Select>
-               </div>
-               <Button onClick={addTenant} className="bg-[#141414] hover:bg-black text-white rounded-none uppercase font-bold tracking-widest h-10 px-8">
-                  Create Tenant
-               </Button>
+            <div className="bg-[#141414] text-white w-8 h-8 flex items-center justify-center mr-3 rounded-sm">
+              <ShieldCheck className="w-5 h-5" />
             </div>
-         </div>
-
-         <div className="bg-white border-2 border-[#141414] shadow-[4px_4px_0_0_#141414] p-6">
-            <h2 className="text-lg font-black uppercase tracking-tighter mb-4 flex items-center">
-               <Calendar className="w-5 h-5 mr-2" /> Tenant Management
-            </h2>
-            <div className="overflow-x-auto">
-               <table className="w-full text-left text-sm font-mono">
-                 <thead className="bg-[#141414] text-white">
-                   <tr>
-                     <th className="p-3 font-bold uppercase tracking-wider">Tenant / Email</th>
-                     <th className="p-3 font-bold uppercase tracking-wider">Status</th>
-                     <th className="p-3 font-bold uppercase tracking-wider">Expiry Date</th>
-                     <th className="p-3 font-bold uppercase tracking-wider text-right">Actions</th>
-                   </tr>
-                 </thead>
-                 <tbody className="divide-y divide-[#141414]">
-                    {tenants.map(tenant => {
-                       const isExpired = tenant.expiresAt && new Date(tenant.expiresAt).getTime() < Date.now();
-                       const statusStr = tenant.active ? (isExpired ? 'EXPIRED' : 'ACTIVE') : 'DISABLED';
-                       
-                       return (
-                         <tr key={tenant.id} className="hover:bg-slate-50 transition-colors group">
-                           <td className="p-3">
-                             <div className="font-bold text-[14px] font-sans">{tenant.email}</div>
-                             <div className="text-[10px] text-slate-500 mt-1">ID: {tenant.id}</div>
-                           </td>
-                           <td className="p-3">
-                              <span className={`px-2 py-1 text-[10px] uppercase font-bold ${statusStr === 'ACTIVE' ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'}`}>
-                                {statusStr}
-                              </span>
-                           </td>
-                           <td className="p-3 text-xs">
-                              {tenant.expiresAt ? new Date(tenant.expiresAt).toLocaleDateString() + ' ' + new Date(tenant.expiresAt).toLocaleTimeString() : 'No expiry set'}
-                           </td>
-                           <td className="p-3 flex gap-2 justify-end">
-                              <Select onValueChange={(val: string) => updateExpiry(tenant.id, parseInt(val))}>
-                                <SelectTrigger className="w-[110px] h-8 text-[10px] rounded-none border-[#141414] uppercase font-bold">
-                                  <SelectValue placeholder="Add Time" />
-                                </SelectTrigger>
-                                <SelectContent className="rounded-none border-2 border-[#141414]">
-                                  <SelectItem value="7">+7 Days</SelectItem>
-                                  <SelectItem value="30">+30 Days</SelectItem>
-                                  <SelectItem value="365">+1 Year</SelectItem>
-                                </SelectContent>
-                              </Select>
-                              <Button 
-                                variant="outline" 
-                                size="sm" 
-                                className="h-8 rounded-none border-[#141414] text-[10px] uppercase font-bold w-[70px]"
-                                onClick={() => toggleStatus(tenant.id, !!tenant.active)}
-                              >
-                                {tenant.active ? 'Disable' : 'Enable'}
-                              </Button>
-                              <Button 
-                                variant="destructive" 
-                                size="icon" 
-                                className="h-8 w-8 rounded-none"
-                                onClick={() => deleteTenant(tenant.id)}
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </Button>
-                           </td>
-                         </tr>
-                       );
-                    })}
-                 </tbody>
-               </table>
+            <div>
+              <h1 className="text-xl font-black uppercase tracking-tighter text-[#141414]">SaaS Admin</h1>
+              <div className="text-[10px] uppercase font-mono text-slate-500 font-bold tracking-widest">Superuser Dashboard</div>
             </div>
-         </div>
-      </main>
+          </div>
+          <div className="flex bg-slate-100 p-1 border border-slate-200">
+             <button onClick={() => setTab('tenants')} className={`px-4 py-2 text-xs font-bold uppercase transition-all ${tab === 'tenants' ? 'bg-[#141414] text-white' : 'text-slate-500 hover:text-black'}`}>
+                Tenants
+             </button>
+             <button onClick={() => setTab('settings')} className={`px-4 py-2 text-xs font-bold uppercase transition-all ${tab === 'settings' ? 'bg-[#141414] text-white' : 'text-slate-500 hover:text-black'}`}>
+                System Settings
+             </button>
+          </div>
+        </header>
+
+        <main className="max-w-6xl mx-auto p-6 space-y-6">
+          {tab === 'tenants' ? (
+            <>
+              <div className="bg-white border-2 border-[#141414] shadow-[4px_4px_0_0_#141414] p-6 mb-6">
+                 <h2 className="text-lg font-black uppercase tracking-tighter mb-4 flex items-center">
+                    <Plus className="w-5 h-5 mr-2" /> Add New Tenant
+                 </h2>
+                 <div className="flex gap-4 items-end">
+                    <div className="flex-1">
+                      <label className="text-xs font-bold uppercase tracking-widest mb-2 block">Email / Identifier</label>
+                      <Input 
+                        value={newEmail} 
+                        onChange={e => setNewEmail(e.target.value)} 
+                        placeholder="user@example.com"
+                        className="rounded-none border-2 border-[#141414]"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs font-bold uppercase tracking-widest mb-2 block">Initial Trial</label>
+                      <Select value={newDays} onValueChange={setNewDays}>
+                         <SelectTrigger className="w-[150px] rounded-none border-2 border-[#141414]">
+                           <SelectValue />
+                         </SelectTrigger>
+                         <SelectContent className="rounded-none border-2 border-[#141414]">
+                           <SelectItem value="7">7 Days</SelectItem>
+                           <SelectItem value="14">14 Days</SelectItem>
+                           <SelectItem value="30">30 Days</SelectItem>
+                           <SelectItem value="365">1 Year</SelectItem>
+                         </SelectContent>
+                      </Select>
+                    </div>
+                    <Button onClick={addTenant} className="bg-[#141414] hover:bg-black text-white rounded-none uppercase font-bold tracking-widest h-10 px-8">
+                       Create Tenant
+                    </Button>
+                 </div>
+              </div>
+
+              <div className="bg-white border-2 border-[#141414] shadow-[4px_4px_0_0_#141414] p-6">
+                 <h2 className="text-lg font-black uppercase tracking-tighter mb-4 flex items-center">
+                    <Calendar className="w-5 h-5 mr-2" /> Tenant Management
+                 </h2>
+                 <div className="overflow-x-auto">
+                    <table className="w-full text-left text-sm font-mono">
+                      <thead className="bg-[#141414] text-white">
+                        <tr>
+                          <th className="p-3 font-bold uppercase tracking-wider">Tenant / Email</th>
+                          <th className="p-3 font-bold uppercase tracking-wider">Status</th>
+                          <th className="p-3 font-bold uppercase tracking-wider">Expiry Date</th>
+                          <th className="p-3 font-bold uppercase tracking-wider text-right">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-[#141414]">
+                         {tenants.map(tenant => {
+                            const isExpired = tenant.expiresAt && new Date(tenant.expiresAt).getTime() < Date.now();
+                            const statusStr = tenant.active ? (isExpired ? 'EXPIRED' : 'ACTIVE') : 'DISABLED';
+                            
+                            return (
+                              <tr key={tenant.id} className="hover:bg-slate-50 transition-colors group">
+                                <td className="p-3">
+                                  <div className="font-bold text-[14px] font-sans">{tenant.email}</div>
+                                  <div className="text-[10px] text-slate-500 mt-1">ID: {tenant.id}</div>
+                                </td>
+                                <td className="p-3">
+                                   <span className={`px-2 py-1 text-[10px] uppercase font-bold ${statusStr === 'ACTIVE' ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'}`}>
+                                     {statusStr}
+                                   </span>
+                                </td>
+                                <td className="p-3 text-xs">
+                                   {tenant.expiresAt ? new Date(tenant.expiresAt).toLocaleDateString() + ' ' + new Date(tenant.expiresAt).toLocaleTimeString() : 'No expiry set'}
+                                </td>
+                                <td className="p-3 flex gap-2 justify-end">
+                                   <Select onValueChange={(val: string) => updateExpiry(tenant.id, parseInt(val))}>
+                                     <SelectTrigger className="w-[110px] h-8 text-[10px] rounded-none border-[#141414] uppercase font-bold">
+                                       <SelectValue placeholder="Add Time" />
+                                     </SelectTrigger>
+                                     <SelectContent className="rounded-none border-2 border-[#141414]">
+                                       <SelectItem value="7">+7 Days</SelectItem>
+                                       <SelectItem value="30">+30 Days</SelectItem>
+                                       <SelectItem value="365">+1 Year</SelectItem>
+                                     </SelectContent>
+                                   </Select>
+                                   <Button 
+                                     variant="outline" 
+                                     size="sm" 
+                                     className="h-8 rounded-none border-[#141414] text-[10px] uppercase font-bold w-[70px]"
+                                     onClick={() => toggleStatus(tenant.id, !!tenant.active)}
+                                   >
+                                     {tenant.active ? 'Disable' : 'Enable'}
+                                   </Button>
+                                   <Button 
+                                     variant="destructive" 
+                                     size="icon" 
+                                     className="h-8 w-8 rounded-none"
+                                     onClick={() => deleteTenant(tenant.id)}
+                                   >
+                                     <Trash2 className="w-4 h-4" />
+                                   </Button>
+                                </td>
+                              </tr>
+                            );
+                         })}
+                      </tbody>
+                    </table>
+                 </div>
+              </div>
+            </>
+          ) : (
+             <div className="bg-white border-2 border-[#141414] shadow-[4px_4px_0_0_#141414] p-8 max-w-2xl mx-auto">
+                <div className="flex items-center gap-3 mb-8">
+                   <Mail className="w-6 h-6 text-indigo-600" />
+                   <h2 className="text-xl font-black uppercase tracking-tighter">Email (SMTP) Configuration</h2>
+                </div>
+                
+                <div className="space-y-6">
+                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div className="space-y-2">
+                        <label className="text-xs font-bold uppercase tracking-widest text-slate-500">SMTP Host</label>
+                        <Input 
+                          value={smtpConfig.smtp_host} 
+                          onChange={e => setSmtpConfig({...smtpConfig, smtp_host: e.target.value})} 
+                          placeholder="smtp.example.com"
+                          className="rounded-none border-2 border-[#141414]"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-xs font-bold uppercase tracking-widest text-slate-500">SMTP Port</label>
+                        <Input 
+                          value={smtpConfig.smtp_port} 
+                          onChange={e => setSmtpConfig({...smtpConfig, smtp_port: e.target.value})} 
+                          placeholder="587"
+                          className="rounded-none border-2 border-[#141414]"
+                        />
+                      </div>
+                   </div>
+
+                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div className="space-y-2">
+                        <label className="text-xs font-bold uppercase tracking-widest text-slate-500">SMTP Username</label>
+                        <Input 
+                          value={smtpConfig.smtp_user} 
+                          onChange={e => setSmtpConfig({...smtpConfig, smtp_user: e.target.value})} 
+                          placeholder="user@example.com"
+                          className="rounded-none border-2 border-[#141414]"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-xs font-bold uppercase tracking-widest text-slate-500">SMTP Password</label>
+                        <Input 
+                          type="password"
+                          value={smtpConfig.smtp_pass} 
+                          onChange={e => setSmtpConfig({...smtpConfig, smtp_pass: e.target.value})} 
+                          placeholder="••••••••"
+                          className="rounded-none border-2 border-[#141414]"
+                        />
+                      </div>
+                   </div>
+
+                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div className="space-y-2">
+                        <label className="text-xs font-bold uppercase tracking-widest text-slate-500">From Name/Email</label>
+                        <Input 
+                          value={smtpConfig.smtp_from} 
+                          onChange={e => setSmtpConfig({...smtpConfig, smtp_from: e.target.value})} 
+                          placeholder='"VortexPay" <no-reply@vortexpay.io>'
+                          className="rounded-none border-2 border-[#141414]"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-xs font-bold uppercase tracking-widest text-slate-500">Secure (SSL/TLS)</label>
+                        <Select value={smtpConfig.smtp_secure} onValueChange={(val) => setSmtpConfig({...smtpConfig, smtp_secure: val})}>
+                           <SelectTrigger className="rounded-none border-2 border-[#141414]">
+                             <SelectValue />
+                           </SelectTrigger>
+                           <SelectContent className="rounded-none border-2 border-[#141414]">
+                             <SelectItem value="true">Enable SSL (465)</SelectItem>
+                             <SelectItem value="false">Disable / STARTTLS (587)</SelectItem>
+                           </SelectContent>
+                        </Select>
+                      </div>
+                   </div>
+
+                   <div className="pt-4 border-t-2 border-slate-100 flex justify-end">
+                      <Button onClick={saveSettings} className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-none uppercase font-bold tracking-widest h-12 px-10">
+                         <Save className="w-5 h-5 mr-2" /> Save System Settings
+                      </Button>
+                   </div>
+                </div>
+                
+                <div className="mt-8 p-4 bg-slate-50 border-2 border-dashed border-slate-200">
+                   <p className="text-[10px] text-slate-400 font-mono italic">
+                      Note: These settings are global across the entire VortexPay routing system. If left blank, system will default to terminal logging/simulation mode.
+                   </p>
+                </div>
+             </div>
+          )}
+        </main>
     </div>
   );
 }

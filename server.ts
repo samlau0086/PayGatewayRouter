@@ -7,6 +7,7 @@ import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
 import speakeasy from "speakeasy";
 import qrcode from "qrcode";
+import nodemailer from "nodemailer";
 import db from "./database.js"; // Use local sqlite db
 
 const __filename = fileURLToPath(import.meta.url);
@@ -19,6 +20,45 @@ async function startServer() {
   const PORT = Number(process.env.PORT) || 3000;
 
   app.use(express.json());
+
+  // --- Email Helper ---
+  async function getEmailConfig() {
+    const settings = db.prepare('SELECT * FROM system_settings').all() as any[];
+    const config: any = {};
+    settings.forEach(s => config[s.key] = s.value);
+    return config;
+  }
+
+  async function sendEmail(to: string, subject: string, text: string) {
+    const config = await getEmailConfig();
+    if (!config.smtp_host) {
+      console.log(`[EMAIL] SMTP not configured. MOCK EMAIL to ${to}: ${subject}\n${text}`);
+      return;
+    }
+
+    try {
+      const transporter = nodemailer.createTransport({
+        host: config.smtp_host,
+        port: Number(config.smtp_port) || 587,
+        secure: config.smtp_secure === 'true',
+        auth: {
+          user: config.smtp_user,
+          pass: config.smtp_pass,
+        },
+      });
+
+      await transporter.sendMail({
+        from: config.smtp_from || `"VortexPay" <${config.smtp_user}>`,
+        to,
+        subject,
+        text,
+      });
+      console.log(`[EMAIL] Success: Sent to ${to}`);
+    } catch (err) {
+      console.error(`[EMAIL] Error sending to ${to}:`, err);
+      throw new Error('Failed to send email');
+    }
+  }
 
   // --- Auth & Admin Gateway APIs ---
   
@@ -134,11 +174,18 @@ async function startServer() {
     db.prepare('UPDATE tenants SET resetToken = ?, resetTokenExpires = ? WHERE email = ?')
       .run(resetToken, resetTokenExpires, email);
 
-    // MOCK EMAIL LOGGING
-    console.log(`[AUTH] PASSWORD RESET SIMULATION for ${email}: Token is ${resetToken}`);
-    console.log(`[AUTH] RESET LINK: ${process.env.APP_URL || 'http://localhost:3000'}/admin?resetToken=${resetToken}`);
+    const resetLink = `${process.env.APP_URL || 'http://localhost:3000'}/admin?resetToken=${resetToken}`;
     
-    res.json({ success: true, message: 'If an account with that email exists, a reset link has been shared with you.', mockToken: resetToken });
+    try {
+      await sendEmail(
+        email, 
+        'Password Reset Request - VortexPay',
+        `You requested a password reset. Click the link below to reset your password:\n\n${resetLink}\n\nIf you did not request this, please ignore this email.`
+      );
+      res.json({ success: true, message: 'If an account with that email exists, a reset link has been shared with you.' });
+    } catch (err) {
+      res.status(500).json({ error: 'Failed to send reset email' });
+    }
   });
 
   app.post('/api/auth/reset-password', async (req, res) => {
@@ -334,6 +381,23 @@ async function startServer() {
      db.prepare('DELETE FROM b_sites WHERE tenantId = ?').run(id);
      db.prepare('DELETE FROM orders WHERE tenantId = ?').run(id);
      db.prepare('DELETE FROM tenants WHERE id = ?').run(id);
+     res.json({ success: true });
+  });
+
+  app.get('/api/admin/settings', requireAuth, requireAdmin, async (req: any, res: any) => {
+     const settings = db.prepare('SELECT * FROM system_settings').all();
+     res.json(settings);
+  });
+
+  app.post('/api/admin/settings', requireAuth, requireAdmin, async (req: any, res: any) => {
+     const settings = req.body; // Array of {key, value}
+     const insert = db.prepare('INSERT OR REPLACE INTO system_settings (key, value) VALUES (?, ?)');
+     const transaction = db.transaction((data) => {
+       for (const item of data) {
+         insert.run(item.key, item.value);
+       }
+     });
+     transaction(settings);
      res.json({ success: true });
   });
 

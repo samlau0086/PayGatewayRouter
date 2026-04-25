@@ -55,6 +55,11 @@ db.exec(`
     createdAt TEXT,
     FOREIGN KEY(tenantId) REFERENCES tenants(id) ON DELETE CASCADE
   );
+
+  CREATE TABLE IF NOT EXISTS system_settings (
+    key TEXT PRIMARY KEY,
+    value TEXT
+  );
 `);
 
 const safeAlter = (query: string) => {
