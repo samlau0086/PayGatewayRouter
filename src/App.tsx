@@ -275,7 +275,8 @@ function VortexPayApp() {
   const [emailInput, setEmailInput] = useState('');
   const [passwordInput, setPasswordInput] = useState('');
   const [otpInput, setOtpInput] = useState('');
-  const [authMode, setAuthMode] = useState<'login' | 'register' | 'otp'>('login');
+  const [authMode, setAuthMode] = useState<'login' | 'register' | 'otp' | 'forgot' | 'reset'>('login');
+  const [resetToken, setResetToken] = useState('');
   const [tempToken, setTempToken] = useState('');
   const [authLoading, setAuthLoading] = useState(false);
 
@@ -283,6 +284,28 @@ function VortexPayApp() {
     if (authLoading) return;
     setAuthLoading(true);
     try {
+       if (authMode === 'forgot') {
+          const data = await apiFetch('/auth/forgot-password', {
+             method: 'POST',
+             body: JSON.stringify({ email: emailInput })
+          });
+          toast.success(data.message);
+          setAuthLoading(false);
+          return;
+       }
+
+       if (authMode === 'reset') {
+          const data = await apiFetch('/auth/reset-password', {
+             method: 'POST',
+             body: JSON.stringify({ token: resetToken, newPassword: passwordInput })
+          });
+          toast.success(data.message);
+          setAuthMode('login');
+          window.history.replaceState({}, document.title, "/admin");
+          setAuthLoading(false);
+          return;
+       }
+
        if (authMode === 'otp') {
          const data = await apiFetch('/auth/verify-otp', {
            method: 'POST',
@@ -326,6 +349,13 @@ function VortexPayApp() {
   };
 
   useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const token = params.get('resetToken');
+    if (token) {
+       setResetToken(token);
+       setAuthMode('reset');
+    }
+
     if (localStorage.getItem('token')) {
        // Mock restore since token is valid 7 days
        const payload = JSON.parse(atob(localStorage.getItem('token')!.split('.')[1]));
@@ -507,7 +537,7 @@ function VortexPayApp() {
            <h1 className="text-3xl font-black uppercase tracking-tighter mb-2 text-[#141414]">VortexPay</h1>
            <p className="text-sm font-mono tracking-widest uppercase text-slate-500 font-bold mb-8">System Gateway</p>
            
-           {authMode === 'otp' ? (
+            {authMode === 'otp' ? (
               <div className="space-y-4" onKeyDown={e => e.key === 'Enter' && submitAuth()}>
                  <p className="text-sm mb-4 font-bold">2FA Required: Enter your code</p>
                  <Input value={otpInput} onChange={e => setOtpInput(e.target.value)} placeholder="000000" className="mb-4 rounded-none border-2 border-[#141414] font-mono text-center h-12 text-2xl tracking-[0.5em]" maxLength={6} autoFocus />
@@ -516,18 +546,44 @@ function VortexPayApp() {
                  </Button>
                  <Button variant="ghost" onClick={() => setAuthMode('login')} className="w-full text-xs uppercase font-bold">Cancel</Button>
               </div>
+           ) : authMode === 'reset' ? (
+              <div className="space-y-1" onKeyDown={e => e.key === 'Enter' && submitAuth()}>
+                  <p className="text-sm mb-4 font-bold text-center">Reset Your Password</p>
+                  <Input type="password" value={passwordInput} onChange={e => setPasswordInput(e.target.value)} placeholder="New Password" className="mb-6 rounded-none border-2 border-[#141414] font-mono text-center h-12" autoFocus />
+                  <Button onClick={submitAuth} disabled={authLoading} className="w-full bg-[#141414] hover:bg-black rounded-none h-12 uppercase font-bold tracking-widest text-white mb-4">
+                    {authLoading ? <Activity className="w-5 h-5 animate-spin" /> : 'Update Password'}
+                 </Button>
+                 <Button variant="ghost" onClick={() => setAuthMode('login')} className="w-full text-xs uppercase font-bold">Back to login</Button>
+              </div>
            ) : (
               <div className="space-y-1" onKeyDown={e => e.key === 'Enter' && submitAuth()}>
-                 <Input value={emailInput} onChange={e => setEmailInput(e.target.value)} placeholder="Email address" className="mb-4 rounded-none border-2 border-[#141414] font-mono text-center h-12" />
-                 <Input type="password" value={passwordInput} onChange={e => setPasswordInput(e.target.value)} placeholder="Password" className="mb-6 rounded-none border-2 border-[#141414] font-mono text-center h-12" />
-                 
-                 <Button onClick={submitAuth} disabled={authLoading} className="w-full bg-[#141414] hover:bg-black rounded-none h-12 uppercase font-bold tracking-widest text-white mb-4">
-                    {authLoading ? <Activity className="w-5 h-5 animate-spin" /> : (authMode === 'login' ? 'Log in' : 'Register')}
-                 </Button>
+                 {authMode === 'forgot' ? (
+                    <>
+                       <p className="text-sm mb-4 text-center">Enter your email to receive a reset link</p>
+                       <Input value={emailInput} onChange={e => setEmailInput(e.target.value)} placeholder="Email address" className="mb-4 rounded-none border-2 border-[#141414] font-mono text-center h-12" autoFocus />
+                       <Button onClick={submitAuth} disabled={authLoading} className="w-full bg-[#141414] hover:bg-black rounded-none h-12 uppercase font-bold tracking-widest text-white mb-4">
+                          {authLoading ? <Activity className="w-5 h-5 animate-spin" /> : 'Send Reset Link'}
+                       </Button>
+                       <Button variant="ghost" onClick={() => setAuthMode('login')} className="w-full text-xs uppercase font-bold">Back to login</Button>
+                    </>
+                 ) : (
+                    <>
+                       <Input value={emailInput} onChange={e => setEmailInput(e.target.value)} placeholder="Email address" className="mb-4 rounded-none border-2 border-[#141414] font-mono text-center h-12" />
+                       <Input type="password" value={passwordInput} onChange={e => setPasswordInput(e.target.value)} placeholder="Password" className="mb-2 rounded-none border-2 border-[#141414] font-mono text-center h-12" />
+                       
+                       <div className="flex justify-end mb-4">
+                         <button type="button" onClick={() => setAuthMode('forgot')} className="text-[10px] uppercase font-bold text-slate-400 hover:text-black tracking-widest">Forgot Password?</button>
+                       </div>
 
-                 <Button variant="ghost" onClick={() => setAuthMode(authMode === 'login' ? 'register' : 'login')} className="w-full text-xs uppercase font-bold text-slate-500 hover:text-black">
-                    {authMode === 'login' ? "Don't have an account? Register" : "Already have an account? Log in"}
-                 </Button>
+                       <Button onClick={submitAuth} disabled={authLoading} className="w-full bg-[#141414] hover:bg-black rounded-none h-12 uppercase font-bold tracking-widest text-white mb-4">
+                          {authLoading ? <Activity className="w-5 h-5 animate-spin" /> : (authMode === 'login' ? 'Log in' : 'Register')}
+                       </Button>
+
+                       <Button variant="ghost" onClick={() => setAuthMode(authMode === 'login' ? 'register' : 'login')} className="w-full text-xs uppercase font-bold text-slate-500 hover:text-black">
+                          {authMode === 'login' ? "Don't have an account? Register" : "Already have an account? Log in"}
+                       </Button>
+                    </>
+                 )}
               </div>
            )}
         </div>

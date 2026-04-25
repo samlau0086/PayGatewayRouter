@@ -117,6 +117,49 @@ async function startServer() {
     }
   });
 
+  app.post('/api/auth/forgot-password', async (req, res) => {
+    const { email } = req.body;
+    console.log(`[AUTH] Forgot password request for: ${email}`);
+    if (!email) return res.status(400).json({ error: 'Email required' });
+
+    const tenant = db.prepare('SELECT * FROM tenants WHERE email = ?').get(email) as any;
+    if (!tenant) {
+      // Don't reveal if email exists, just return success
+      return res.json({ success: true, message: 'If an account with that email exists, a reset link will be sent.' });
+    }
+
+    const resetToken = crypto.randomBytes(20).toString('hex');
+    const resetTokenExpires = new Date(Date.now() + 3600000).toISOString(); // 1 hour
+
+    db.prepare('UPDATE tenants SET resetToken = ?, resetTokenExpires = ? WHERE email = ?')
+      .run(resetToken, resetTokenExpires, email);
+
+    // MOCK EMAIL LOGGING
+    console.log(`[AUTH] PASSWORD RESET SIMULATION for ${email}: Token is ${resetToken}`);
+    console.log(`[AUTH] RESET LINK: ${process.env.APP_URL || 'http://localhost:3000'}/admin?resetToken=${resetToken}`);
+    
+    res.json({ success: true, message: 'If an account with that email exists, a reset link has been shared with you.', mockToken: resetToken });
+  });
+
+  app.post('/api/auth/reset-password', async (req, res) => {
+    const { token, newPassword } = req.body;
+    if (!token || !newPassword) return res.status(400).json({ error: 'Token and new password required' });
+
+    const tenant = db.prepare('SELECT * FROM tenants WHERE resetToken = ? AND resetTokenExpires > ?')
+      .get(token, new Date().toISOString()) as any;
+
+    if (!tenant) {
+      return res.status(400).json({ error: 'Reset token is invalid or has expired' });
+    }
+
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+    db.prepare('UPDATE tenants SET password = ?, resetToken = NULL, resetTokenExpires = NULL WHERE id = ?')
+      .run(hashedPassword, tenant.id);
+
+    console.log(`[AUTH] Password reset success for: ${tenant.email}`);
+    res.json({ success: true, message: 'Password has been reset successfully.' });
+  });
+
   // Auth Middleware
   const requireAuth = (req: any, res: any, next: any) => {
     const authHeader = req.headers.authorization;

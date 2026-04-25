@@ -65,4 +65,7 @@ safeAlter('ALTER TABLE tenants ADD COLUMN password TEXT');
 safeAlter('ALTER TABLE tenants ADD COLUMN otpSecret TEXT');
 safeAlter('ALTER TABLE tenants ADD COLUMN otpEnabled INTEGER DEFAULT 0');
 
+safeAlter('ALTER TABLE tenants ADD COLUMN resetToken TEXT');
+safeAlter('ALTER TABLE tenants ADD COLUMN resetTokenExpires TEXT');
+
 export default db;
