@@ -102,3 +102,25 @@ B站代表挂载真实支付账号（Stripe/Paypal等）的安全收银台域名
 3. **下载 B 站插件包**: 点击下载按钮获取ZIP包。在 B 站后台上传并启用。
    - 前往 "设置 -> VortexPay B Config"。
    - 填入 **Router URL (当前路由系统网址)**，用以保障支付成功后的 Webhook 异步回调能正确推送给路由网关。
+
+---
+
+### 4. Admin Password Reset (Emergency / 紧急密码重置)
+
+**🇺🇸 English:**
+If you lose access to your admin account after deploying to your own server, you can use the built-in reset script:
+1. Ensure the database file `data.db` exists in the root directory.
+2. Run the following command:
+   ```bash
+   node scripts/reset-admin.js
+   ```
+3. This will reset the password for `samlau0086@gmail.com` to `admin123456` and disable 2FA.
+
+**🇨🇳 中文:**
+如果您在自建服务器部署后无法登录管理员账号，可以使用内置的重置脚本：
+1. 确保根目录下存在 `data.db` 数据库文件。
+2. 执行以下命令：
+   ```bash
+   node scripts/reset-admin.js
+   ```
+3. 该脚本会将账号 `samlau0086@gmail.com` 的密码重置为 `admin123456`，并强制关闭 2FA 二次验证。

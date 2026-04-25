@@ -106,7 +106,14 @@ const translations: Record<'en'|'zh', Record<string, string>> = {
     resolve_cancelled: "Resolve as CANCELLED",
     refunded: "REFUNDED",
     cancelled: "CANCELLED",
-    download_plg: "Download Plugin (.zip)"
+    download_plg: "Download Plugin (.zip)",
+    change_pwd: "Change Password",
+    old_pwd: "Old Password",
+    new_pwd: "New Password",
+    confirm_pwd: "Confirm New Password",
+    update_pwd_btn: "Update Password",
+    pwd_mismatch: "Passwords do not match",
+    pwd_changed: "Password updated successfully"
   },
   zh: {
     title: "VortexPay 核心路由网关",
@@ -194,7 +201,14 @@ const translations: Record<'en'|'zh', Record<string, string>> = {
     resolve_cancelled: "推送 [已取消] 状态",
     refunded: "已退款",
     cancelled: "已关闭",
-    download_plg: "下载插件包 (.zip)"
+    download_plg: "下载插件包 (.zip)",
+    change_pwd: "修改登录密码",
+    old_pwd: "当前旧密码",
+    new_pwd: "设置新密码",
+    confirm_pwd: "确认新密码",
+    update_pwd_btn: "立即更新密码",
+    pwd_mismatch: "两次输入的新密码不一致",
+    pwd_changed: "密码已成功修改"
   }
 };
 
@@ -230,6 +244,29 @@ function VortexPayApp() {
   const [newASite, setNewASite] = useState({ name: '', domain: '', api_key: '' });
   const [newBSite, setNewBSite] = useState({ name: '', domain: '' });
   const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  const [pwdForm, setPwdForm] = useState({ old: '', new: '', confirm: '' });
+  const [pwdLoading, setPwdLoading] = useState(false);
+
+  const handleChangePassword = async () => {
+    if (pwdForm.new !== pwdForm.confirm) {
+      toast.error(t('pwd_mismatch'));
+      return;
+    }
+    setPwdLoading(true);
+    try {
+      await apiFetch('/auth/change-password', {
+        method: 'POST',
+        body: JSON.stringify({ oldPassword: pwdForm.old, newPassword: pwdForm.new })
+      });
+      toast.success(t('pwd_changed'));
+      setPwdForm({ old: '', new: '', confirm: '' });
+    } catch(e: any) {
+      toast.error(e.message || e);
+    } finally {
+      setPwdLoading(false);
+    }
+  };
 
   const handleCopy = (id: string, text: string) => {
     navigator.clipboard.writeText(text);
@@ -1064,6 +1101,33 @@ function VortexPayApp() {
                    </div>
                 )}
              </div>
+
+             {/* Password Change Section */}
+              <div className="border-2 border-[#141414] bg-white p-6 shadow-[6px_6px_0_0_#141414] max-w-2xl mt-8">
+                 <h2 className="text-xl font-black uppercase tracking-tight mb-4 flex items-center border-b-2 border-slate-200 pb-2 text-[#141414]">
+                   <Settings className="w-5 h-5 mr-3" /> {t('change_pwd')}
+                 </h2>
+                 
+                 <div className="space-y-4 max-w-md">
+                    <div>
+                      <label className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-2 block">{t('old_pwd')}</label>
+                      <Input type="password" value={pwdForm.old} onChange={e => setPwdForm({...pwdForm, old: e.target.value})} className="rounded-none border-2 border-[#141414] h-11" />
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-2 block">{t('new_pwd')}</label>
+                      <Input type="password" value={pwdForm.new} onChange={e => setPwdForm({...pwdForm, new: e.target.value})} className="rounded-none border-2 border-[#141414] h-11" />
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-2 block">{t('confirm_pwd')}</label>
+                      <Input type="password" value={pwdForm.confirm} onChange={e => setPwdForm({...pwdForm, confirm: e.target.value})} className="rounded-none border-2 border-[#141414] h-11" />
+                    </div>
+                    
+                    <Button onClick={handleChangePassword} disabled={pwdLoading} className="bg-[#141414] hover:bg-black text-white rounded-none uppercase tracking-widest font-bold h-12 px-6 w-full sm:w-auto">
+                        {pwdLoading ? <Activity className="w-4 h-4 animate-spin mr-2" /> : null}
+                        {t('update_pwd_btn')}
+                    </Button>
+                 </div>
+              </div>
           </TabsContent>
 
           <TabsContent value="integration" className="animate-in fade-in duration-500">

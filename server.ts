@@ -237,7 +237,6 @@ async function startServer() {
     res.json({ success: true, message: 'Password has been reset successfully.' });
   });
 
-  // Auth Middleware
   const requireAuth = (req: any, res: any, next: any) => {
     const authHeader = req.headers.authorization;
     if (!authHeader) return res.status(401).json({ error: 'Unauthorized' });
@@ -257,6 +256,24 @@ async function startServer() {
       return res.status(401).json({ error: 'Unauthorized' });
     }
   };
+
+  app.post('/api/auth/change-password', requireAuth, async (req: any, res: any) => {
+    const { oldPassword, newPassword } = req.body;
+    if (!oldPassword || !newPassword) return res.status(400).json({ error: 'Old and new passwords required' });
+
+    const tenantId = req.user.uid;
+    const tenant = db.prepare('SELECT * FROM tenants WHERE id = ?').get(tenantId) as any;
+    if (!tenant || !tenant.password) return res.status(400).json({ error: 'User not found' });
+
+    const isMatch = await bcrypt.compare(oldPassword, tenant.password);
+    if (!isMatch) return res.status(400).json({ error: 'Incorrect old password' });
+
+    const hashedNewPassword = await bcrypt.hash(newPassword, 10);
+    db.prepare('UPDATE tenants SET password = ? WHERE id = ?').run(hashedNewPassword, tenantId);
+
+    console.log(`[AUTH] Password changed for: ${tenant.email}`);
+    res.json({ success: true, message: 'Password changed successfully' });
+  });
 
   const requireAdmin = (req: any, res: any, next: any) => {
     if (req.user?.email !== 'samlau0086@gmail.com') return res.status(403).json({ error: 'Forbidden' });
