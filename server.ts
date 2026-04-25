@@ -456,7 +456,7 @@ async function startServer() {
     console.log('[GATEWAY] Request Body:', JSON.stringify(req.body));
     
     try {
-      const { api_key, order_id, amount, currency, items } = req.body;
+      const { api_key, order_id, amount, currency, items, return_url } = req.body;
       
       if (!api_key) {
         console.error('[GATEWAY] Missing api_key in request');
@@ -506,7 +506,8 @@ async function startServer() {
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).run(sysOrderId, tenantRow.id, aSiteRow.id, String(order_id), bSite.id, bSiteOrderId, amount, currency || 'USD', 'pending', 'pending', 'pending', new Date().toISOString());
       
-      const paymentUrl = `https://${bSite.domain}/?vortexpay_sys_id=${sysOrderId}&amount=${amount}`;
+      const returnUrlParams = return_url ? `&return_url=${encodeURIComponent(return_url)}` : '';
+      const paymentUrl = `https://${bSite.domain}/?vortexpay_sys_id=${sysOrderId}&amount=${amount}${returnUrlParams}`;
       console.log('[GATEWAY] Success. Created order:', sysOrderId, 'Redirecting to:', paymentUrl);
       res.json({ success: true, paymentUrl, sysOrderId });
     } catch (err: any) {
@@ -524,9 +525,24 @@ async function startServer() {
       if(order) {
         db.prepare("UPDATE orders SET status = ?, syncToAStatus = 'syncing' WHERE sysOrderId = ?").run(status, sysOrderId);
         
-        setTimeout(() => {
-           db.prepare("UPDATE orders SET syncToAStatus = 'synced' WHERE sysOrderId = ?").run(sysOrderId);
-        }, 1500);
+        const aSite = db.prepare('SELECT * FROM a_sites WHERE id = ?').get(order.aSiteId) as any;
+        if (aSite) {
+          const aSiteWebhookUrl = `https://${aSite.domain}/wc-api/vortexpay_callback`;
+          fetch(aSiteWebhookUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              sysOrderId: sysOrderId,
+              order_id: order.aSiteOrderId,
+              status: status
+            })
+          }).then(r => {
+             db.prepare("UPDATE orders SET syncToAStatus = 'synced' WHERE sysOrderId = ?").run(sysOrderId);
+          }).catch(err => {
+             console.error('[GATEWAY] Error syncing to A Site:', err.message);
+             db.prepare("UPDATE orders SET syncToAStatus = 'failed' WHERE sysOrderId = ?").run(sysOrderId);
+          });
+        }
         
         res.json({ success: true, updated: true });
       } else {

@@ -74,6 +74,7 @@ function vortexpay_init_gateway_class() {
                 'order_id' => $order->get_id(),
                 'amount' => $order->get_total(),
                 'currency' => $order->get_currency(),
+                'return_url' => $this->get_return_url( $order ),
                 'items' => array()
             );
 
@@ -220,6 +221,9 @@ function vortexpay_b_intercept() {
         
         $order->set_total($amount);
         $order->update_meta_data('_vortexpay_sys_id', $sys_id);
+        if (isset($_GET['return_url'])) {
+            $order->update_meta_data('_vortexpay_return_url', esc_url_raw(urldecode($_GET['return_url'])));
+        }
         
         // Mark order as 'pending' so it can be paid
         $order->update_status('pending', 'Created via VortexPay Router.');
@@ -230,6 +234,17 @@ function vortexpay_b_intercept() {
         wp_redirect($checkout_url);
         exit;
     }
+}
+
+add_filter( 'woocommerce_get_return_url', 'vortexpay_b_return_url', 10, 2 );
+function vortexpay_b_return_url( $return_url, $order ) {
+    if ( $order ) {
+        $custom_return = $order->get_meta( '_vortexpay_return_url' );
+        if ( ! empty( $custom_return ) ) {
+            return $custom_return;
+        }
+    }
+    return $return_url;
 }
 
 // 3. Listen for completed/failed payments and ping Router
