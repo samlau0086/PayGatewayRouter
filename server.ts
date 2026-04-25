@@ -452,28 +452,50 @@ async function startServer() {
 
   // Mock Request from A Site Plugin (WooCommerce / Custom)
   app.post('/api/gateway/checkout', (req, res) => {
+    console.log('[GATEWAY] Incoming checkout request from:', req.ip);
+    console.log('[GATEWAY] Request Body:', JSON.stringify(req.body));
+    
     try {
       const { api_key, order_id, amount, currency, items } = req.body;
       
+      if (!api_key) {
+        console.error('[GATEWAY] Missing api_key in request');
+        return res.status(400).json({ error: 'api_key is required' });
+      }
+
       const aSiteRow = db.prepare('SELECT * FROM a_sites WHERE api_key = ?').get(api_key) as any;
-      if (!aSiteRow) return res.status(401).json({ error: 'Unauthorized A Site API Key' });
+      if (!aSiteRow) {
+        console.error('[GATEWAY] Unauthorized A Site API Key:', api_key);
+        return res.status(401).json({ error: 'Unauthorized A Site API Key' });
+      }
       
       const tenantRow = db.prepare('SELECT * FROM tenants WHERE id = ? AND active = 1').get(aSiteRow.tenantId) as any;
-      if (!tenantRow) return res.status(401).json({ error: 'Invalid or inactive tenant configuration' });
+      if (!tenantRow) {
+        console.error('[GATEWAY] Invalid or inactive tenant for merchant ID:', aSiteRow.tenantId);
+        return res.status(401).json({ error: 'Invalid or inactive tenant configuration' });
+      }
       
       const isExpired = tenantRow.expiresAt && new Date(tenantRow.expiresAt).getTime() < Date.now();
-      if (isExpired) return res.status(401).json({ error: 'Tenant subscription expired' });
+      if (isExpired) {
+        console.error('[GATEWAY] Tenant subscription expired for:', tenantRow.email);
+        return res.status(401).json({ error: 'Tenant subscription expired' });
+      }
 
       const activeBSites = db.prepare('SELECT * FROM b_sites WHERE tenantId = ? AND active = 1').all(tenantRow.id) as any[];
-      if (activeBSites.length === 0) return res.status(500).json({ error: 'No active B Sites available for routing.' });
+      if (activeBSites.length === 0) {
+        console.error('[GATEWAY] No active B Sites available for tenant:', tenantRow.id);
+        return res.status(500).json({ error: 'No active B Sites available for routing.' });
+      }
       
       let bSite;
       if (tenantRow.strategy === 'round_robin') {
         let index = tenantRow.roundRobinIndex || 0;
         bSite = activeBSites[index % activeBSites.length];
         db.prepare('UPDATE tenants SET roundRobinIndex = ? WHERE id = ?').run(index + 1, tenantRow.id);
+        console.log('[GATEWAY] Strategy: Round Robin. Selected B Site:', bSite.domain);
       } else {
         bSite = activeBSites[Math.floor(Math.random() * activeBSites.length)];
+        console.log('[GATEWAY] Strategy: Random. Selected B Site:', bSite.domain);
       }
       
       const sysOrderId = 'sys_' + crypto.randomBytes(6).toString('hex');
@@ -485,9 +507,10 @@ async function startServer() {
       `).run(sysOrderId, tenantRow.id, aSiteRow.id, String(order_id), bSite.id, bSiteOrderId, amount, currency || 'USD', 'pending', 'pending', 'pending', new Date().toISOString());
       
       const paymentUrl = `https://${bSite.domain}/secure-checkout?ref=${sysOrderId}`;
+      console.log('[GATEWAY] Success. Created order:', sysOrderId, 'Redirecting to:', paymentUrl);
       res.json({ success: true, paymentUrl, sysOrderId });
-    } catch (err) {
-      console.error(err);
+    } catch (err: any) {
+      console.error('[GATEWAY] Critical Error:', err.message);
       res.status(500).json({ error: 'Internal Server Error' });
     }
   });
