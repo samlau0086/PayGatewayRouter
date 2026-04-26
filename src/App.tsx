@@ -852,7 +852,7 @@ function VortexPayApp() {
                         </TableCell>
                         <TableCell>
                           <div className="font-mono text-xs text-emerald-700">{stats.bSites.find((b:any)=>b.id===o.bSiteId)?.domain || o.bSiteId}</div>
-                          <div className="text-[10px] text-slate-500 font-mono mt-1 uppercase">{t('bgateway_ref')} {o.bSiteOrderId || o.sysOrderId}</div>
+                          <div className="text-[10px] text-slate-500 font-mono mt-1 uppercase">{t('bgateway_ref')} {o.bSiteOrderId || <span className="opacity-50 italic">Waiting Callback...</span>}</div>
                         </TableCell>
                         <TableCell className="font-mono font-bold text-right">${o.amount.toFixed(2)}</TableCell>
                         <TableCell>
