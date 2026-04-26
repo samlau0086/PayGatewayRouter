@@ -572,11 +572,73 @@ async function startServer() {
               <meta name="viewport" content="width=device-width, initial-scale=1">
               <meta http-equiv="refresh" content="3;url=${finalUrl.toString()}">
               <style>
-                  body { font-family: -apple-system, sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; background: #f8fafc; color: #334155; margin: 0; }
+                  body { 
+                    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; 
+                    display: flex; 
+                    justify-content: center; 
+                    align-items: center; 
+                    height: 100vh; 
+                    background: #f4f5f7; 
+                    color: #111827; 
+                    margin: 0;
+                  }
+                  .container {
+                    text-align: center;
+                    background: white;
+                    padding: 40px 32px;
+                    border-radius: 16px;
+                    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.01);
+                    max-width: 420px;
+                    width: 90%;
+                  }
+                  .icon-wrapper {
+                    color: #6b7280;
+                    margin-bottom: 20px;
+                    display: flex;
+                    justify-content: center;
+                  }
+                  .icon-cancel {
+                    width: 48px;
+                    height: 48px;
+                  }
+                  h1 {
+                    font-size: 20px;
+                    font-weight: 700;
+                    margin: 0 0 12px;
+                    color: #111827;
+                  }
+                  p {
+                    font-size: 14px;
+                    font-weight: 400;
+                    color: #6b7280;
+                    margin: 0 0 32px;
+                  }
+                  .spinner {
+                    width: 24px;
+                    height: 24px;
+                    color: #9ca3af;
+                    animation: spin 1s linear infinite;
+                    margin: 0 auto;
+                  }
+                  @keyframes spin {
+                    100% { transform: rotate(360deg); }
+                  }
               </style>
             </head>
             <body>
-              <div style="text-align: center;">Returning to cart...</div>
+              <div class="container">
+                <div class="icon-wrapper">
+                  <svg class="icon-cancel" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="19" y1="12" x2="5" y2="12"></line>
+                    <polyline points="12 19 5 12 12 5"></polyline>
+                  </svg>
+                </div>
+                <h1>Payment Cancelled</h1>
+                <p>Returning you to the shopping cart...</p>
+                <svg class="spinner" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                </svg>
+              </div>
             </body>
             </html>
            `);
@@ -617,17 +679,17 @@ async function startServer() {
                     justify-content: center; 
                     align-items: center; 
                     height: 100vh; 
-                    background: #f8fafc; 
-                    color: #334155; 
+                    background: #f4f5f7; 
+                    color: #111827; 
                     margin: 0;
                   }
                   .container {
                     text-align: center;
                     background: white;
-                    padding: 40px;
+                    padding: 40px 32px;
                     border-radius: 16px;
-                    box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
-                    max-width: 400px;
+                    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.01);
+                    max-width: 420px;
                     width: 90%;
                   }
                   .check-icon {
