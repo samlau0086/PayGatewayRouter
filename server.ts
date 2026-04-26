@@ -532,7 +532,30 @@ async function startServer() {
            for (const [key, value] of Object.entries(req.query)) {
              finalUrl.searchParams.append(key, value as string);
            }
-           return res.redirect(finalUrl.toString());
+           
+           // Return an HTML jump page that strips referer before going back to A Site
+           return res.send(`
+            <!DOCTYPE html>
+            <html>
+            <head>
+              <title>Returning to store...</title>
+              <meta charset="utf-8">
+              <meta name="referrer" content="no-referrer">
+              <meta http-equiv="refresh" content="0;url=${finalUrl.toString()}">
+              <style>
+                  body { font-family: sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; background: #fafafa; color: #555; }
+              </style>
+            </head>
+            <body>
+              <p>Payment securely completed. Returning to store...</p>
+              <script>
+                setTimeout(function() {
+                    window.location.replace("${finalUrl.toString()}");
+                }, 100);
+              </script>
+            </body>
+            </html>
+          `);
          } catch (e) {
            return res.redirect(order.returnUrl);
          }

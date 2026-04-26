@@ -123,9 +123,11 @@ function vortexpay_init_gateway_class() {
             $order->update_meta_data('_vortexpay_incoming_sync', 'yes');
             $order->save();
 
-            if ( $data['status'] === 'paid' ) {
+            if ( $data['status'] === 'paid' || $data['status'] === 'processing' ) {
                 $order->payment_complete( $data['sysOrderId'] );
                 $order->add_order_note('VortexPay: Payment successful on target B site.');
+            } elseif ( $data['status'] === 'completed' ) {
+                $order->update_status( 'completed', 'VortexPay: Payment completed on target B site.' );
             } elseif ( $data['status'] === 'failed' || $data['status'] === 'cancelled' ) {
                 $order->update_status( 'cancelled', 'VortexPay: Payment failed/cancelled on target B site.' );
             } elseif ( $data['status'] === 'refunded' ) {
@@ -148,9 +150,6 @@ function vortexpay_init_gateway_class() {
              if (!in_array($new_status, $syncable_statuses)) return;
              
              $status = $new_status;
-             if ($new_status === 'processing' || $new_status === 'completed') {
-                  $status = 'paid';
-             }
              $this->send_origin_webhook($order_id, $status);
         }
 
@@ -440,8 +439,8 @@ function vortexpay_b_status_changed($order_id, $old_status, $new_status, $order)
     if ($old_status === $new_status) return;
     
     $status_map = array(
-        'processing' => 'paid',
-        'completed'  => 'paid',
+        'processing' => 'processing',
+        'completed'  => 'completed',
         'failed'     => 'failed',
         'cancelled'  => 'cancelled',
         'refunded'   => 'refunded',
@@ -519,8 +518,10 @@ function vortexpay_b_webhook_handler() {
          $order->update_status( 'refunded', 'VortexPay: Order refunded on Origin A site.' );
     } elseif ( $data['status'] === 'on-hold' ) {
          $order->update_status( 'on-hold', 'VortexPay: Order on-hold on Origin A site.' );
-    } elseif ( $data['status'] === 'paid' ) {
-         $order->update_status( 'processing', 'VortexPay: Order paid on Origin A site.' );
+    } elseif ( $data['status'] === 'paid' || $data['status'] === 'processing' ) {
+         $order->update_status( 'processing', 'VortexPay: Order processing on Origin A site.' );
+    } elseif ( $data['status'] === 'completed' ) {
+         $order->update_status( 'completed', 'VortexPay: Order completed on Origin A site.' );
     } elseif ( $data['status'] === 'pending' ) {
          $order->update_status( 'pending', 'VortexPay: Order pending on Origin A site.' );
     } elseif ( $data['status'] === 'failed' ) {
