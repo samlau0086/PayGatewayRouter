@@ -740,43 +740,62 @@ async function startServer() {
           <meta name="viewport" content="width=device-width, initial-scale=1">
           <style>
               body { 
-                font-family: "Courier New", Courier, monospace; 
+                font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; 
                 display: flex; 
                 justify-content: center; 
                 align-items: center; 
                 height: 100vh; 
-                background: #000; 
-                color: #0bd11e; 
+                background: #f8fafc; 
+                color: #141414; 
                 margin: 0;
               }
-              .terminal-wrapper {
-                width: 100%;
-                max-width: 700px;
-                height: 85vh;
-                padding: 20px;
-                box-sizing: border-box;
+              .container {
+                background: white;
+                border: 2px solid #141414;
+                box-shadow: 6px 6px 0 0 #141414;
+                max-width: 450px;
+                width: 90%;
+                padding: 32px;
+                border-radius: 0;
+              }
+              h1 {
+                font-size: 24px;
+                font-weight: 900;
+                text-transform: uppercase;
+                margin: 0 0 8px;
+                letter-spacing: -0.5px;
                 display: flex;
-                flex-direction: column;
-                justify-content: flex-end;
+                align-items: center;
+                gap: 12px;
+              }
+              p.subtitle {
+                font-size: 14px;
+                color: #64748b;
+                margin: 0 0 24px;
+              }
+              .terminal-wrapper {
+                background: #141414;
+                color: #10b981;
+                font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+                padding: 16px;
+                height: 140px;
+                overflow-y: hidden;
+                position: relative;
               }
               .terminal {
-                overflow-y: hidden;
-                display: flex;
-                flex-direction: column;
-                justify-content: flex-end;
+                display: block;
               }
               .line {
                 margin: 4px 0;
-                font-size: 14px;
+                font-size: 13px;
                 line-height: 1.5;
                 word-wrap: break-word;
               }
               .header {
-                color: #0bd11e;
-                margin-bottom: 20px;
-                font-size: 14px;
+                color: #10b981;
+                margin-bottom: 12px;
+                font-size: 13px;
                 line-height: 1.3;
-                white-space: pre-wrap;
                 font-weight: bold;
               }
               .blink {
@@ -785,19 +804,31 @@ async function startServer() {
               @keyframes blinker {
                 50% { opacity: 0; }
               }
+              .icon-spinner {
+                animation: spin 1s linear infinite;
+                width: 24px;
+                height: 24px;
+              }
+              @keyframes spin {
+                100% { transform: rotate(360deg); }
+              }
           </style>
         </head>
         <body>
-          <div class="terminal-wrapper">
-            <div class="header">
-VORTEX GATEWAY NODE
-=========================================
-FRAUD CHECKING PROTOCOL v3.0
-=========================================
-WARNING: ALL TRAFFIC IS BEING MONITORED
+          <div class="container">
+            <h1>
+               <svg class="icon-spinner" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+               </svg>
+               Security Verification
+            </h1>
+            <p class="subtitle">Please wait while we establish a secure connection for your transaction.</p>
+            
+            <div class="terminal-wrapper">
+              <div class="header">SYSTEM LOGS</div>
+              <div class="terminal" id="output"></div>
+              <div class="line" id="cursor"><span class="blink">_</span></div>
             </div>
-            <div class="terminal" id="output"></div>
-            <div class="line" id="cursor"><span class="blink">_</span></div>
           </div>
           <script>
             const steps = [
@@ -816,6 +847,7 @@ WARNING: ALL TRAFFIC IS BEING MONITORED
             
             let currentStep = 0;
             const outputEl = document.getElementById('output');
+            const wrapperEl = document.querySelector('.terminal-wrapper');
             
             const isBot = navigator.webdriver || window.callPhantom || window.__nightmare;
             
@@ -824,8 +856,8 @@ WARNING: ALL TRAFFIC IS BEING MONITORED
               el.className = 'line';
               el.innerText = text;
               outputEl.appendChild(el);
-              // scroll to bottom
-              window.scrollTo(0, document.body.scrollHeight);
+              // scroll to bottom of the wrapper
+              wrapperEl.scrollTop = wrapperEl.scrollHeight;
             }
 
             function runNextStep() {
