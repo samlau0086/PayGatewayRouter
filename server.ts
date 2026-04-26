@@ -527,14 +527,14 @@ async function startServer() {
       }
       
       const sysOrderId = 'sys_' + crypto.randomBytes(6).toString('hex');
-      const bSiteOrderId = null; // Wait for B Site callback to provide actual order ID
+      const bSiteOrderId = Math.floor(10000000 + Math.random() * 90000000).toString();
       
       const host = req.get('host');
       const protocol = req.protocol || 'https';
       const routerReturnUrl = `${protocol}://${host}/api/gateway/return/${sysOrderId}`;
       const routerCancelUrl = `${protocol}://${host}/api/gateway/cancel/${sysOrderId}`;
       const returnUrlParams = `&return_url=${encodeURIComponent(routerReturnUrl)}&cancel_url=${encodeURIComponent(routerCancelUrl)}`;
-      const targetBUrl = `https://${bSite.domain}/?vortexpay_sys_id=${sysOrderId}&vortexpay_source_id=${encodeURIComponent(String(order_id))}&amount=${amount}${returnUrlParams}`;
+      const targetBUrl = `https://${bSite.domain}/?vortexpay_sys_id=${sysOrderId}&vortexpay_source_id=${encodeURIComponent(String(order_id))}&vortexpay_ref=${bSiteOrderId}&amount=${amount}${returnUrlParams}`;
       const jumpUrl = `${protocol}://${host}/api/gateway/jump/${sysOrderId}`;
       
       db.prepare(`
@@ -661,7 +661,8 @@ async function startServer() {
   app.get('/api/gateway/return/:sysOrderId', (req, res) => {
     try {
       const sysOrderId = req.params.sysOrderId;
-      const b_order_id = req.query.b_order_id || req.query.order_id || req.query.id;
+      // Capture the actual B Site order ID from common redirect parameters
+      const b_order_id = req.query.b_order_id || req.query.order_id || req.query.id || req.query.transaction_id || req.query.trade_no || req.query.out_trade_no;
       
       if (b_order_id) {
          db.prepare('UPDATE orders SET bSiteOrderId = ? WHERE sysOrderId = ?').run(String(b_order_id), sysOrderId);
@@ -1062,20 +1063,21 @@ async function startServer() {
   app.post('/api/webhook/gateway', (req, res) => {
     console.log('[WEBHOOK] Received from B Site:', req.body);
     try {
-      const { sysOrderId, status, b_order_id, order_id } = req.body; 
-      const actualBSiteOrderId = b_order_id || order_id;
+      const { sysOrderId, status, b_order_id, order_id, transaction_id, trade_no } = req.body; 
+      const actualBSiteOrderId = b_order_id || order_id || transaction_id || trade_no;
       
       const order = db.prepare('SELECT * FROM orders WHERE sysOrderId = ?').get(sysOrderId) as any;
       
       if(order) {
         // Update status and try to capture the actual B site order ID if we don't have it or if it changed
+        const updateParams = [status, actualBSiteOrderId ? String(actualBSiteOrderId) : null, sysOrderId];
         db.prepare(`
           UPDATE orders 
           SET status = ?, 
               bSiteOrderId = COALESCE(?, bSiteOrderId),
               syncToAStatus = 'syncing' 
           WHERE sysOrderId = ?
-        `).run(status, actualBSiteOrderId ? String(actualBSiteOrderId) : null, sysOrderId);
+        `).run(...updateParams);
         
         const aSite = db.prepare('SELECT * FROM a_sites WHERE id = ?').get(order.aSiteId) as any;
         if (aSite) {
