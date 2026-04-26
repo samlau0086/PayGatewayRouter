@@ -639,16 +639,15 @@ async function startServer() {
          return res.status(404).send('Order not found');
       }
 
-      // Output an HTML page that strips the referer natively via meta tag, then redirects
+      // Output an HTML page that strips the referer natively via meta tag, performs fraud checks, then redirects
       res.send(`
         <!DOCTYPE html>
         <html>
         <head>
-          <title>Redirecting to Payment...</title>
+          <title>Security Check...</title>
           <meta charset="utf-8">
           <meta name="referrer" content="no-referrer">
           <meta name="viewport" content="width=device-width, initial-scale=1">
-          <meta http-equiv="refresh" content="3;url=${order.paymentUrl}">
           <style>
               body { 
                 font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; 
@@ -669,56 +668,97 @@ async function startServer() {
                 max-width: 400px;
                 width: 90%;
               }
-              .lock-icon {
-                color: #10b981;
-                width: 48px;
-                height: 48px;
-                margin: 0 auto 20px;
+              .shield-icon {
+                color: #3b82f6;
+                width: 56px;
+                height: 56px;
+                margin: 0 auto 24px;
                 animation: pulse 2s infinite;
               }
               h1 {
                 font-size: 20px;
                 font-weight: 600;
-                margin: 0 0 12px;
+                margin: 0 0 16px;
                 color: #0f172a;
               }
-              p {
-                font-size: 15px;
+              .status-text {
+                font-size: 13px;
                 color: #64748b;
-                margin: 0 0 24px;
-                line-height: 1.5;
+                margin: 0 0 8px;
+                font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+                background: #f1f5f9;
+                padding: 12px;
+                border-radius: 8px;
+                min-height: 20px;
+                text-align: left;
               }
-              .spinner {
-                width: 40px;
-                height: 40px;
-                border: 3px solid #f3f4f6;
-                border-top: 3px solid #3b82f6;
-                border-radius: 50%;
-                margin: 0 auto;
-                animation: spin 1s linear infinite;
+              .progress-bar {
+                width: 100%;
+                height: 6px;
+                background: #e2e8f0;
+                border-radius: 4px;
+                overflow: hidden;
+                margin-bottom: 24px;
               }
-              @keyframes spin {
-                0% { transform: rotate(0deg); }
-                100% { transform: rotate(360deg); }
+              .progress-fill {
+                height: 100%;
+                background: #3b82f6;
+                width: 0%;
+                transition: width 0.3s ease;
               }
               @keyframes pulse {
                 0% { transform: scale(1); opacity: 1; }
-                50% { transform: scale(1.1); opacity: 0.8; }
+                50% { transform: scale(1.05); opacity: 0.9; }
                 100% { transform: scale(1); opacity: 1; }
               }
           </style>
         </head>
         <body>
           <div class="container">
-            <svg class="lock-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
-            <h1>Securing your transaction</h1>
-            <p>Please wait while we transfer you to our secure payment gateway...</p>
-            <div class="spinner"></div>
+            <svg class="shield-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path></svg>
+            <h1>Fraud Protection</h1>
+            <div class="progress-bar"><div class="progress-fill" id="progress"></div></div>
+            <div class="status-text" id="status">Initializing security scan...</div>
           </div>
           <script>
-            setTimeout(function() {
+            const steps = [
+              { text: "> Initializing security environment...", delay: 400, progress: 15 },
+              { text: "> Identifying ASN and IP reputation...", delay: 600, progress: 35 },
+              { text: "> Checking for automated bot traffic...", delay: 800, progress: 55 },
+              { text: "> Analyzing browser fingerprint...", delay: 700, progress: 75 },
+              { text: "> Evaluating risk score...", delay: 600, progress: 90 },
+              { text: "> Validation complete. Securing...", delay: 500, progress: 100 },
+            ];
+            
+            let currentStep = 0;
+            const statusEl = document.getElementById('status');
+            const progressEl = document.getElementById('progress');
+            
+            const isBot = navigator.webdriver || window.callPhantom || window.__nightmare;
+            
+            function runNextStep() {
+              if (currentStep < steps.length) {
+                const step = steps[currentStep];
+                statusEl.innerText = step.text;
+                progressEl.style.width = step.progress + '%';
+                currentStep++;
+                
+                let nextDelay = step.delay;
+                // Add a slightly more varied time
+                nextDelay += Math.floor(Math.random() * 300) - 100;
+                
+                if (isBot && currentStep === 3) {
+                    statusEl.innerText = "> Suspicious activity detected. Running deep inspection...";
+                    nextDelay += 2000;
+                }
+                
+                setTimeout(runNextStep, nextDelay);
+              } else {
                 window.location.replace("${order.paymentUrl}");
-            }, 1800);
+              }
+            }
+            
+            setTimeout(runNextStep, 300);
           </script>
         </body>
         </html>

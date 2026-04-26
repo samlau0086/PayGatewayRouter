@@ -317,8 +317,39 @@ function vortexpay_b_custom_checkout_ui() {
                     color: #111;
                     font-size: 16px;
                 }
-                #order_review_heading, table.shop_table {
+                #order_review_heading {
                     display: none !important;
+                }
+                table.shop_table {
+                    border: none !important;
+                    margin-bottom: 24px !important;
+                    width: 100% !important;
+                }
+                table.shop_table thead, table.shop_table tbody, table.shop_table tfoot tr:not(.order-total) {
+                    display: none !important;
+                }
+                table.shop_table tfoot th, table.shop_table tfoot td {
+                    border-top: none !important;
+                    border-bottom: none !important;
+                    padding: 16px 0 !important;
+                    background: transparent !important;
+                    font-weight: 400 !important;
+                }
+                table.shop_table tfoot th {
+                    text-align: left !important;
+                    font-size: 16px !important;
+                    color: #666 !important;
+                }
+                table.shop_table tfoot td {
+                    text-align: right !important;
+                }
+                table.shop_table tfoot tr.order-total th, table.shop_table tfoot tr.order-total td {
+                    font-size: 20px !important;
+                    color: #111 !important;
+                    border-top: 1px solid #eaeaea !important;
+                }
+                table.shop_table tfoot tr.order-total td strong {
+                    font-weight: 700 !important;
                 }
                 #payment {
                     background: transparent !important;
