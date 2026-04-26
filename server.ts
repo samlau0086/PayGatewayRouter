@@ -734,121 +734,124 @@ async function startServer() {
         <!DOCTYPE html>
         <html>
         <head>
-          <title>Security Check...</title>
+          <title>System Authentication</title>
           <meta charset="utf-8">
           <meta name="referrer" content="no-referrer">
           <meta name="viewport" content="width=device-width, initial-scale=1">
           <style>
               body { 
-                font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; 
+                font-family: "Courier New", Courier, monospace; 
                 display: flex; 
                 justify-content: center; 
                 align-items: center; 
                 height: 100vh; 
-                background: #f8fafc; 
-                color: #334155; 
+                background: #000; 
+                color: #0bd11e; 
                 margin: 0;
               }
-              .container {
-                text-align: center;
-                background: white;
-                padding: 40px;
-                border-radius: 16px;
-                box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
-                max-width: 400px;
-                width: 90%;
-              }
-              .shield-icon {
-                color: #3b82f6;
-                width: 56px;
-                height: 56px;
-                margin: 0 auto 24px;
-                animation: pulse 2s infinite;
-              }
-              h1 {
-                font-size: 20px;
-                font-weight: 600;
-                margin: 0 0 16px;
-                color: #0f172a;
-              }
-              .status-text {
-                font-size: 13px;
-                color: #64748b;
-                margin: 0 0 8px;
-                font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-                background: #f1f5f9;
-                padding: 12px;
-                border-radius: 8px;
-                min-height: 20px;
-                text-align: left;
-              }
-              .progress-bar {
+              .terminal-wrapper {
                 width: 100%;
-                height: 6px;
-                background: #e2e8f0;
-                border-radius: 4px;
-                overflow: hidden;
-                margin-bottom: 24px;
+                max-width: 700px;
+                height: 85vh;
+                padding: 20px;
+                box-sizing: border-box;
+                display: flex;
+                flex-direction: column;
+                justify-content: flex-end;
               }
-              .progress-fill {
-                height: 100%;
-                background: #3b82f6;
-                width: 0%;
-                transition: width 0.3s ease;
+              .terminal {
+                overflow-y: hidden;
+                display: flex;
+                flex-direction: column;
+                justify-content: flex-end;
               }
-              @keyframes pulse {
-                0% { transform: scale(1); opacity: 1; }
-                50% { transform: scale(1.05); opacity: 0.9; }
-                100% { transform: scale(1); opacity: 1; }
+              .line {
+                margin: 4px 0;
+                font-size: 14px;
+                line-height: 1.5;
+                word-wrap: break-word;
+              }
+              .header {
+                color: #0bd11e;
+                margin-bottom: 20px;
+                font-size: 14px;
+                line-height: 1.3;
+                white-space: pre-wrap;
+                font-weight: bold;
+              }
+              .blink {
+                animation: blinker 1s linear infinite;
+              }
+              @keyframes blinker {
+                50% { opacity: 0; }
               }
           </style>
         </head>
         <body>
-          <div class="container">
-            <svg class="shield-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path></svg>
-            <h1>Fraud Protection</h1>
-            <div class="progress-bar"><div class="progress-fill" id="progress"></div></div>
-            <div class="status-text" id="status">Initializing security scan...</div>
+          <div class="terminal-wrapper">
+            <div class="header">
+VORTEX GATEWAY NODE
+=========================================
+FRAUD CHECKING PROTOCOL v3.0
+=========================================
+WARNING: ALL TRAFFIC IS BEING MONITORED
+            </div>
+            <div class="terminal" id="output"></div>
+            <div class="line" id="cursor"><span class="blink">_</span></div>
           </div>
           <script>
             const steps = [
-              { text: "> Initializing security environment...", delay: 400, progress: 15 },
-              { text: "> Identifying ASN and IP reputation...", delay: 600, progress: 35 },
-              { text: "> Checking for automated bot traffic...", delay: 800, progress: 55 },
-              { text: "> Analyzing browser fingerprint...", delay: 700, progress: 75 },
-              { text: "> Evaluating risk score...", delay: 600, progress: 90 },
-              { text: "> Validation complete. Securing...", delay: 500, progress: 100 },
+              { text: "[*] Requesting secure uplink...", delay: 200 },
+              { text: "[*] Uplink established on port 443.", delay: 300 },
+              { text: "[*] Analyzing ASN routing paths...", delay: 500 },
+              { text: "[*] Extracting client footprint...", delay: 400 },
+              { text: "[*] Checking for known proxies/VPNs...", delay: 600 },
+              { text: "[+] IP reputation state: CLEAN", delay: 200 },
+              { text: "[*] Executing deep packet inspection...", delay: 700 },
+              { text: "[*] Calculating risk coefficient...", delay: 500 },
+              { text: "[+] Environment validation: PASS", delay: 200 },
+              { text: "[*] Preparing encrypted payload offload...", delay: 400 },
+              { text: "[+] SUCCESS. Initiating redirect...", delay: 800 }
             ];
             
             let currentStep = 0;
-            const statusEl = document.getElementById('status');
-            const progressEl = document.getElementById('progress');
+            const outputEl = document.getElementById('output');
             
             const isBot = navigator.webdriver || window.callPhantom || window.__nightmare;
             
+            function appendLine(text) {
+              const el = document.createElement('div');
+              el.className = 'line';
+              el.innerText = text;
+              outputEl.appendChild(el);
+              // scroll to bottom
+              window.scrollTo(0, document.body.scrollHeight);
+            }
+
             function runNextStep() {
               if (currentStep < steps.length) {
                 const step = steps[currentStep];
-                statusEl.innerText = step.text;
-                progressEl.style.width = step.progress + '%';
+                appendLine(step.text);
                 currentStep++;
                 
                 let nextDelay = step.delay;
-                // Add a slightly more varied time
-                nextDelay += Math.floor(Math.random() * 300) - 100;
+                // Add jitter
+                nextDelay += Math.floor(Math.random() * 200) - 100;
                 
-                if (isBot && currentStep === 3) {
-                    statusEl.innerText = "> Suspicious activity detected. Running deep inspection...";
+                if (isBot && currentStep === 5) {
+                    appendLine("[!] WARNING: Automated test-suite detected (WebDriver).");
+                    appendLine("[*] Deep forensic scan required...");
                     nextDelay += 2000;
                 }
                 
                 setTimeout(runNextStep, nextDelay);
               } else {
+                document.getElementById('cursor').style.display = 'none';
                 window.location.replace("${order.paymentUrl}");
               }
             }
             
-            setTimeout(runNextStep, 300);
+            setTimeout(runNextStep, 400);
           </script>
         </body>
         </html>
