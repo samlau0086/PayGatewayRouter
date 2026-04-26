@@ -845,41 +845,14 @@ function VortexPayApp() {
                       (o.bSiteOrderId && o.bSiteOrderId.toString().toLowerCase().includes(searchQuery.toLowerCase()))
                     ).map((o: any) => (
                       <TableRow key={o.sysOrderId} className="border-[#141414] group hover:bg-slate-50 transition-colors">
-                        <TableCell className="font-mono text-xs text-slate-600 line-clamp-1">
-                          <span 
-                            className="cursor-pointer hover:text-blue-600 active:scale-95 transition-all" 
-                            onClick={() => {
-                              navigator.clipboard.writeText(o.sysOrderId);
-                              // Simple toast-like feedback could go here, but let's keep it minimal
-                            }}
-                            title="Click to copy"
-                          >
-                            {o.sysOrderId}
-                          </span>
-                        </TableCell>
+                        <TableCell className="font-mono text-xs text-slate-600 line-clamp-1">{o.sysOrderId}</TableCell>
                         <TableCell>
                           <div className="font-mono text-xs">{stats.aSites.find((a:any)=>a.id===o.aSiteId)?.domain || o.aSiteId}</div>
-                          <div className="text-[10px] text-slate-500 font-mono mt-1 uppercase">
-                            {t('source_ref')}{' '}
-                            <span 
-                              className="cursor-pointer hover:text-blue-600"
-                              onClick={() => navigator.clipboard.writeText(o.aSiteOrderId || o.sysOrderId)}
-                            >
-                              {o.aSiteOrderId || o.sysOrderId}
-                            </span>
-                          </div>
+                          <div className="text-[10px] text-slate-500 font-mono mt-1 uppercase">{t('source_ref')} {o.aSiteOrderId}</div>
                         </TableCell>
                         <TableCell>
                           <div className="font-mono text-xs text-emerald-700">{stats.bSites.find((b:any)=>b.id===o.bSiteId)?.domain || o.bSiteId}</div>
-                          <div className="text-[10px] text-slate-500 font-mono mt-1 uppercase">
-                            {t('bgateway_ref')}{' '}
-                            <span 
-                              className="cursor-pointer hover:text-blue-600 font-bold"
-                              onClick={() => navigator.clipboard.writeText(o.bSiteOrderId || o.sysOrderId)}
-                            >
-                              {o.bSiteOrderId || o.sysOrderId}
-                            </span>
-                          </div>
+                          <div className="text-[10px] text-slate-500 font-mono mt-1 uppercase">{t('bgateway_ref')} {o.bSiteOrderId}</div>
                         </TableCell>
                         <TableCell className="font-mono font-bold text-right">${o.amount.toFixed(2)}</TableCell>
                         <TableCell>
