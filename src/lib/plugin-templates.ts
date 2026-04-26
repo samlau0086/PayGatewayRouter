@@ -380,6 +380,12 @@ function vortexpay_b_custom_checkout_ui() {
                 #payment div.payment_box::before {
                     display: none !important;
                 }
+                .woocommerce-privacy-policy-text,
+                .woocommerce-terms-and-conditions-wrapper,
+                .woocommerce-breadcrumb,
+                nav.woocommerce-MyAccount-navigation {
+                    display: none !important;
+                }
                 .place-order {
                     padding: 0 !important;
                     background: transparent !important;
@@ -405,6 +411,22 @@ function vortexpay_b_custom_checkout_ui() {
                     box-shadow: 0 6px 16px rgba(0,0,0,0.15) !important;
                 }
             </style>
+            <script>
+                document.addEventListener('DOMContentLoaded', function() {
+                    var termsCheckbox = document.getElementById('terms');
+                    if (termsCheckbox) {
+                        termsCheckbox.checked = true;
+                    }
+                    var body = document.querySelector('body');
+                    if(body) {
+                        body.addEventListener('change', function(e) {
+                             if(e.target && e.target.id === 'terms') {
+                                 e.target.checked = true;
+                             }
+                        });
+                    }
+                });
+            </script>
             <?php
         }
     }
