@@ -391,11 +391,11 @@ async function startServer() {
      // For simulator usage by users
      const order = req.body;
      db.prepare(`
-       INSERT INTO orders (sysOrderId, tenantId, aSiteId, aSiteOrderId, bSiteId, bSiteOrderId, amount, currency, status, syncToAStatus, syncToBStatus, createdAt)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       INSERT INTO orders (sysOrderId, tenantId, aSiteId, aSiteOrderId, bSiteId, bSiteOrderId, amount, currency, status, syncToAStatus, syncToBStatus, createdAt, returnUrl, paymentUrl)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
      `).run(
        order.sysOrderId, req.user.uid, order.aSiteId, order.aSiteOrderId, order.bSiteId, order.bSiteOrderId, 
-       order.amount, order.currency, order.status, order.syncToAStatus, order.syncToBStatus, order.createdAt
+       order.amount, order.currency, order.status, order.syncToAStatus, order.syncToBStatus, order.createdAt, order.returnUrl || null, order.paymentUrl || null
      );
      res.json({ success: true });
   });
@@ -501,18 +501,86 @@ async function startServer() {
       const sysOrderId = 'sys_' + crypto.randomBytes(6).toString('hex');
       const bSiteOrderId = 'ext_' + crypto.randomBytes(4).toString('hex');
       
-      db.prepare(`
-        INSERT INTO orders (sysOrderId, tenantId, aSiteId, aSiteOrderId, bSiteId, bSiteOrderId, amount, currency, status, syncToAStatus, syncToBStatus, createdAt)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `).run(sysOrderId, tenantRow.id, aSiteRow.id, String(order_id), bSite.id, bSiteOrderId, amount, currency || 'USD', 'pending', 'pending', 'pending', new Date().toISOString());
+      const host = req.get('host');
+      const protocol = req.protocol || 'https';
+      const routerReturnUrl = `${protocol}://${host}/api/gateway/return/${sysOrderId}`;
+      const returnUrlParams = `&return_url=${encodeURIComponent(routerReturnUrl)}`;
+      const targetBUrl = `https://${bSite.domain}/?vortexpay_sys_id=${sysOrderId}&amount=${amount}${returnUrlParams}`;
+      const jumpUrl = `${protocol}://${host}/api/gateway/jump/${sysOrderId}`;
       
-      const returnUrlParams = return_url ? `&return_url=${encodeURIComponent(return_url)}` : '';
-      const paymentUrl = `https://${bSite.domain}/?vortexpay_sys_id=${sysOrderId}&amount=${amount}${returnUrlParams}`;
-      console.log('[GATEWAY] Success. Created order:', sysOrderId, 'Redirecting to:', paymentUrl);
-      res.json({ success: true, paymentUrl, sysOrderId });
+      db.prepare(`
+        INSERT INTO orders (sysOrderId, tenantId, aSiteId, aSiteOrderId, bSiteId, bSiteOrderId, amount, currency, status, syncToAStatus, syncToBStatus, createdAt, returnUrl, paymentUrl)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(sysOrderId, tenantRow.id, aSiteRow.id, String(order_id), bSite.id, bSiteOrderId, amount, currency || 'USD', 'pending', 'pending', 'pending', new Date().toISOString(), return_url || null, targetBUrl);
+      
+      console.log('[GATEWAY] Success. Created order:', sysOrderId, 'Redirecting to:', jumpUrl);
+      res.json({ success: true, paymentUrl: jumpUrl, sysOrderId });
     } catch (err: any) {
       console.error('[GATEWAY] Critical Error:', err.message);
       res.status(500).json({ error: 'Internal Server Error' });
+    }
+  });
+
+  // Return handling from B Site
+  app.get('/api/gateway/return/:sysOrderId', (req, res) => {
+    try {
+      const sysOrderId = req.params.sysOrderId;
+      const order = db.prepare('SELECT returnUrl FROM orders WHERE sysOrderId = ?').get(sysOrderId) as any;
+      if (order && order.returnUrl) {
+         try {
+           const finalUrl = new URL(order.returnUrl);
+           for (const [key, value] of Object.entries(req.query)) {
+             finalUrl.searchParams.append(key, value as string);
+           }
+           return res.redirect(finalUrl.toString());
+         } catch (e) {
+           return res.redirect(order.returnUrl);
+         }
+      }
+      // If A site didn't provide a returnUrl, just show a simple success message
+      res.send('Payment process completed. You may close this window.');
+    } catch (err) {
+      console.error('[GATEWAY] Error handling return:', err);
+      res.status(500).send('Internal Server Error');
+    }
+  });
+
+  // Jump page to strip referer
+  app.get('/api/gateway/jump/:sysOrderId', (req, res) => {
+    try {
+      const sysOrderId = req.params.sysOrderId;
+      const order = db.prepare('SELECT paymentUrl FROM orders WHERE sysOrderId = ?').get(sysOrderId) as any;
+      
+      if (!order || !order.paymentUrl) {
+         return res.status(404).send('Order not found');
+      }
+
+      // Output an HTML page that strips the referer natively via meta tag, then redirects
+      res.send(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <title>Redirecting to Payment...</title>
+          <meta charset="utf-8">
+          <meta name="referrer" content="no-referrer">
+          <meta http-equiv="refresh" content="0;url=${order.paymentUrl}">
+          <style>
+              body { font-family: sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; background: #fafafa; color: #555; }
+          </style>
+        </head>
+        <body>
+          <p>Redirecting to secure gateway...</p>
+          <script>
+            setTimeout(function() {
+                window.location.replace("${order.paymentUrl}");
+            }, 100);
+          </script>
+        </body>
+        </html>
+      `);
+    } catch (err) {
+      console.error('[GATEWAY] Error generating jump page:', err);
+      res.status(500).send('Internal Server Error');
     }
   });
 

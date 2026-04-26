@@ -422,6 +422,18 @@ function vortexpay_b_return_url( $return_url, $order ) {
     return $return_url;
 }
 
+add_filter( 'woocommerce_get_cancel_order_url', 'vortexpay_b_cancel_url', 10, 2 );
+function vortexpay_b_cancel_url( $cancel_url, $order ) {
+    if ( $order ) {
+        $custom_return = $order->get_meta( '_vortexpay_return_url' );
+        if ( ! empty( $custom_return ) ) {
+            // Append cancel flag to router return URL
+            return add_query_arg( 'cancel_order', 'true', $custom_return );
+        }
+    }
+    return $cancel_url;
+}
+
 // 3. Listen for order status changes and ping Router
 add_action('woocommerce_order_status_changed', 'vortexpay_b_status_changed', 10, 4);
 function vortexpay_b_status_changed($order_id, $old_status, $new_status, $order) {

@@ -53,6 +53,8 @@ db.exec(`
     syncToAStatus TEXT,
     syncToBStatus TEXT,
     createdAt TEXT,
+    returnUrl TEXT,
+    paymentUrl TEXT,
     FOREIGN KEY(tenantId) REFERENCES tenants(id) ON DELETE CASCADE
   );
 
@@ -72,5 +74,8 @@ safeAlter('ALTER TABLE tenants ADD COLUMN otpEnabled INTEGER DEFAULT 0');
 
 safeAlter('ALTER TABLE tenants ADD COLUMN resetToken TEXT');
 safeAlter('ALTER TABLE tenants ADD COLUMN resetTokenExpires TEXT');
+
+safeAlter('ALTER TABLE orders ADD COLUMN returnUrl TEXT');
+safeAlter('ALTER TABLE orders ADD COLUMN paymentUrl TEXT');
 
 export default db;
