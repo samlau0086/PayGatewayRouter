@@ -81,8 +81,10 @@ const translations: Record<'en'|'zh', Record<string, string>> = {
     select_rule: "Select Rule",
     rand_dist: "Random Distribution",
     round_robin: "Strict Round-Robin",
+    weighted: "Weighted Ratio (Sliding Window)",
     rand_desc: "Randomly selects an active B-site. Good for general unlinked traffic.",
     rr_desc: "Cycles through active B-sites in order sequentially. Best for keeping payment gateways equally warmed up and avoiding sudden volume spikes on a single account.",
+    weighted_desc: "Distributes traffic based on custom weights set per gateway, utilizing a sliding window algorithm for precise traffic splitting (e.g. 30:70).",
     init_core: "INITIALIZING CORE ROOT...",
     lang: "中文",
     integration_tab: "API & Integration",
@@ -176,8 +178,10 @@ const translations: Record<'en'|'zh', Record<string, string>> = {
     select_rule: "选择并发规则",
     rand_dist: "混沌随机分发 (Random)",
     round_robin: "严格顺延均摊 (Round-Robin)",
+    weighted: "滑动窗口权重配比 (Weighted)",
     rand_desc: "纯随机分配给池中任何一个正常的 B 站。适合大流量、不在乎各站资金均衡的野蛮生长模式。",
     rr_desc: "按录入顺序进行均匀轮询。最完美的「防爆单」策略，确保所有的 Stripe/Paypal 等收款账户平摊业务流，减缓单点触达风控阈值的时间。",
+    weighted_desc: "根据为每个网关配置的自定权重，采用滑动窗口算法进行精确的心跳分发，误差率极低（如 30:70 的资金引流分配）。",
     init_core: "正在自检微服务与核心数据链路...",
     lang: "EN",
     integration_tab: "API 接口与插件对接",
@@ -576,6 +580,18 @@ function VortexPayApp() {
     try {
       await apiFetch(`/bsites/${id}`, { method: 'DELETE' });
       toast.success('B Site deleted');
+    } catch (e: any) {
+      toast.error(e.message || e);
+    }
+  };
+
+  const updateBSiteWeight = async (id: string, weight: number) => {
+    try {
+      await apiFetch(`/bsites/${id}`, { 
+        method: 'PUT',
+        body: JSON.stringify({ weight })
+      });
+      toast.success('Weight updated');
     } catch (e: any) {
       toast.error(e.message || e);
     }
@@ -1066,17 +1082,32 @@ function VortexPayApp() {
 
                   <div className="space-y-3">
                     {stats.bSites.map((b: any) => (
-                      <div key={b.id} className="p-3 border border-slate-200 flex items-center justify-between group hover:border-emerald-300">
-                         <div>
-                           <div className="font-bold text-sm uppercase flex items-center">
-                              {b.name}
-                              <Badge variant="outline" className="ml-2 py-0 px-1 text-[10px] h-4 rounded-sm">{b.active ? t('active') : t('paused')}</Badge>
+                      <div key={b.id} className="p-3 border border-slate-200 flex flex-col group hover:border-emerald-300">
+                         <div className="flex items-start justify-between">
+                           <div>
+                             <div className="font-bold text-sm uppercase flex items-center">
+                                {b.name}
+                                <Badge variant="outline" className="ml-2 py-0 px-1 text-[10px] h-4 rounded-sm">{b.active ? t('active') : t('paused')}</Badge>
+                             </div>
+                             <div className="text-xs font-mono text-slate-500">{b.domain}</div>
                            </div>
-                           <div className="text-xs font-mono text-slate-500">{b.domain}</div>
+                           <Button variant="ghost" size="icon" onClick={() => deleteBSite(b.id)} className="text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-none h-8 w-8">
+                             <Trash2 className="w-4 h-4" />
+                           </Button>
                          </div>
-                         <Button variant="ghost" size="icon" onClick={() => deleteBSite(b.id)} className="text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-none h-8 w-8">
-                           <Trash2 className="w-4 h-4" />
-                         </Button>
+                         {stats.pollingConfig.rule === 'weighted' && (
+                           <div className="mt-3 flex items-center gap-2 border-t border-slate-100 pt-2">
+                             <label className="text-[10px] font-bold uppercase tracking-widest text-[#141414]">Weight (1-100)</label>
+                             <input 
+                               type="number" 
+                               min="1" 
+                               max="100" 
+                               defaultValue={b.weight || 1}
+                               onBlur={(e) => updateBSiteWeight(b.id, parseInt(e.target.value))}
+                               className="w-16 h-6 text-xs text-center border border-slate-300 focus:border-emerald-500 outline-none"
+                             />
+                           </div>
+                         )}
                       </div>
                     ))}
                   </div>
@@ -1096,13 +1127,15 @@ function VortexPayApp() {
                          </SelectTrigger>
                          <SelectContent className="rounded-none border-[#141414]">
                            <SelectItem value="random" className="uppercase font-bold cursor-pointer">{t('rand_dist')}</SelectItem>
-                           <SelectItem value="round-robin" className="uppercase font-bold cursor-pointer">{t('round_robin')}</SelectItem>
+                           <SelectItem value="round_robin" className="uppercase font-bold cursor-pointer">{t('round_robin')}</SelectItem>
+                           <SelectItem value="weighted" className="uppercase font-bold cursor-pointer">{t('weighted')}</SelectItem>
                          </SelectContent>
                        </Select>
                      </div>
                      <p className="text-xs font-serif italic text-slate-500">
                        <strong className="font-sans not-italic text-[#141414]">{t('rand_dist')}:</strong> {t('rand_desc')}<br/><br/>
-                       <strong className="font-sans not-italic text-[#141414]">{t('round_robin')}:</strong> {t('rr_desc')}
+                       <strong className="font-sans not-italic text-[#141414]">{t('round_robin')}:</strong> {t('rr_desc')}<br/><br/>
+                       <strong className="font-sans not-italic text-[#141414]">{t('weighted')}:</strong> {t('weighted_desc')}
                      </p>
                   </div>
                 </div>

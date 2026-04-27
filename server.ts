@@ -387,7 +387,7 @@ async function startServer() {
   });
 
   app.post('/api/bsites', requireAuth, (req: any, res: any) => {
-    const { id, name, domain } = req.body;
+    const { id, name, domain, weight } = req.body;
     const tenantId = req.user.uid;
 
     const tenant = db.prepare('SELECT plan FROM tenants WHERE id = ?').get(tenantId) as any;
@@ -398,15 +398,28 @@ async function startServer() {
       return res.status(403).json({ error: `Quota exceeded. Your current plan (${tenant.plan}) allows only ${quota} B Site(s).` });
     }
 
-    db.prepare('INSERT INTO b_sites (id, tenantId, name, domain, active) VALUES (?, ?, ?, ?, 1)')
-      .run(id, tenantId, name, domain);
+    db.prepare('INSERT INTO b_sites (id, tenantId, name, domain, active, weight) VALUES (?, ?, ?, ?, 1, ?)')
+      .run(id, tenantId, name, domain, weight || 1);
     res.json({ success: true });
   });
 
   app.put('/api/bsites/:id', requireAuth, (req: any, res: any) => {
-    const { active } = req.body;
-    db.prepare('UPDATE b_sites SET active = ? WHERE id = ? AND tenantId = ?')
-      .run(active ? 1 : 0, req.params.id, req.user.uid);
+    const { active, weight } = req.body;
+    const updates = [];
+    const values = [];
+    if (active !== undefined) {
+      updates.push('active = ?');
+      values.push(active ? 1 : 0);
+    }
+    if (weight !== undefined) {
+      updates.push('weight = ?');
+      values.push(weight);
+    }
+    if (updates.length > 0) {
+      values.push(req.params.id, req.user.uid);
+      db.prepare(`UPDATE b_sites SET ${updates.join(', ')} WHERE id = ? AND tenantId = ?`)
+        .run(...values);
+    }
     res.json({ success: true });
   });
 
@@ -549,6 +562,18 @@ async function startServer() {
         bSite = activeBSites[index % activeBSites.length];
         db.prepare('UPDATE tenants SET roundRobinIndex = ? WHERE id = ?').run(index + 1, tenantRow.id);
         console.log('[GATEWAY] Strategy: Round Robin. Selected B Site:', bSite.domain);
+      } else if (tenantRow.strategy === 'weighted') {
+        const totalWeight = activeBSites.reduce((sum, site) => sum + (site.weight || 1), 0);
+        let randWeight = Math.random() * totalWeight;
+        for (const site of activeBSites) {
+          randWeight -= (site.weight || 1);
+          if (randWeight <= 0) {
+            bSite = site;
+            break;
+          }
+        }
+        if (!bSite) bSite = activeBSites[0];
+        console.log('[GATEWAY] Strategy: Weighted. Selected B Site:', bSite.domain);
       } else {
         bSite = activeBSites[Math.floor(Math.random() * activeBSites.length)];
         console.log('[GATEWAY] Strategy: Random. Selected B Site:', bSite.domain);
