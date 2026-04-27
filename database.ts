@@ -86,5 +86,6 @@ safeAlter('ALTER TABLE tenants ADD COLUMN resetTokenExpires TEXT');
 
 safeAlter('ALTER TABLE orders ADD COLUMN returnUrl TEXT');
 safeAlter('ALTER TABLE orders ADD COLUMN paymentUrl TEXT');
+safeAlter("ALTER TABLE tenants ADD COLUMN plan TEXT DEFAULT 'free'");
 
 export default db;

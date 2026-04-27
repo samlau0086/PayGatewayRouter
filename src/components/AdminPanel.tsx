@@ -10,7 +10,8 @@ export function AdminPanel({ onBack }: { onBack: () => void }) {
   const [tenants, setTenants] = useState<any[]>([]);
   const [tab, setTab] = useState<'tenants' | 'settings' | 'fraud'>('tenants');
   const [newEmail, setNewEmail] = useState('');
-  const [newDays, setNewDays] = useState('7');
+  const [newDays, setNewDays] = useState('1');
+  const [newPlan, setNewPlan] = useState('free');
   
   // Fraud state
   const [fraudRules, setFraudRules] = useState<any[]>([]);
@@ -114,6 +115,10 @@ export function AdminPanel({ onBack }: { onBack: () => void }) {
     await apiFetch(`/tenants/${id}`, { method: 'PUT', body: JSON.stringify({ active: !currentStatus }) });
   };
 
+  const updatePlan = async (id: string, plan: string) => {
+    await apiFetch(`/tenants/${id}`, { method: 'PUT', body: JSON.stringify({ plan }) });
+  };
+
   const addTenant = async () => {
     if (!newEmail) return;
     const expiresAt = new Date(Date.now() + parseInt(newDays) * 24 * 60 * 60 * 1000).toISOString();
@@ -125,7 +130,8 @@ export function AdminPanel({ onBack }: { onBack: () => void }) {
          roundRobinIndex: 0,
          apiKey: 'sk_test_' + Math.random().toString(36).substring(2, 10),
          active: true,
-         expiresAt
+         expiresAt,
+         plan: newPlan
        })
     });
     setNewEmail('');
@@ -198,6 +204,19 @@ export function AdminPanel({ onBack }: { onBack: () => void }) {
                          </SelectContent>
                       </Select>
                     </div>
+                    <div>
+                      <label className="text-xs font-bold uppercase tracking-widest mb-2 block">Plan</label>
+                      <Select value={newPlan} onValueChange={setNewPlan}>
+                         <SelectTrigger className="w-[120px] rounded-none border-2 border-[#141414]">
+                           <SelectValue />
+                         </SelectTrigger>
+                         <SelectContent className="rounded-none border-2 border-[#141414]">
+                           <SelectItem value="free">Free</SelectItem>
+                           <SelectItem value="pro">Pro</SelectItem>
+                           <SelectItem value="enterprise">Enterprise</SelectItem>
+                         </SelectContent>
+                      </Select>
+                    </div>
                     <Button onClick={addTenant} className="bg-[#141414] hover:bg-black text-white rounded-none uppercase font-bold tracking-widest h-10 px-8">
                        Create Tenant
                     </Button>
@@ -213,6 +232,7 @@ export function AdminPanel({ onBack }: { onBack: () => void }) {
                       <thead className="bg-[#141414] text-white">
                         <tr>
                           <th className="p-3 font-bold uppercase tracking-wider">Tenant / Email</th>
+                          <th className="p-3 font-bold uppercase tracking-wider">Plan</th>
                           <th className="p-3 font-bold uppercase tracking-wider">Status</th>
                           <th className="p-3 font-bold uppercase tracking-wider">Expiry Date</th>
                           <th className="p-3 font-bold uppercase tracking-wider text-right">Actions</th>
@@ -228,6 +248,18 @@ export function AdminPanel({ onBack }: { onBack: () => void }) {
                                 <td className="p-3">
                                   <div className="font-bold text-[14px] font-sans">{tenant.email}</div>
                                   <div className="text-[10px] text-slate-500 mt-1">ID: {tenant.id}</div>
+                                </td>
+                                <td className="p-3">
+                                   <Select value={tenant.plan || 'free'} onValueChange={(val: string) => updatePlan(tenant.id, val)}>
+                                     <SelectTrigger className="w-[110px] h-8 text-[10px] rounded-none border-[#141414] uppercase font-bold">
+                                       <SelectValue />
+                                     </SelectTrigger>
+                                     <SelectContent className="rounded-none border-2 border-[#141414]">
+                                       <SelectItem value="free">Free</SelectItem>
+                                       <SelectItem value="pro">Pro</SelectItem>
+                                       <SelectItem value="enterprise">Enterprise</SelectItem>
+                                     </SelectContent>
+                                   </Select>
                                 </td>
                                 <td className="p-3">
                                    <span className={`px-2 py-1 text-[10px] uppercase font-bold ${statusStr === 'ACTIVE' ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'}`}>

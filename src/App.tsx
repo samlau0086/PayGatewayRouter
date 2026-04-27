@@ -528,37 +528,57 @@ function VortexPayApp() {
 
   const addASite = async () => {
     if(!newASite.name || !newASite.domain || !user) return;
-    await apiFetch('/asites', {
-      method: 'POST',
-      body: JSON.stringify({
-         id: 'site_' + Math.random().toString(36).substring(2),
-         name: newASite.name,
-         domain: newASite.domain,
-         api_key: newASite.api_key || 'sk_a_' + Math.random().toString(36).substring(2)
-      })
-    });
-    setNewASite({ name: '', domain: '', api_key: '' });
+    try {
+      await apiFetch('/asites', {
+        method: 'POST',
+        body: JSON.stringify({
+           id: 'site_' + Math.random().toString(36).substring(2),
+           name: newASite.name,
+           domain: newASite.domain,
+           api_key: newASite.api_key || 'sk_a_' + Math.random().toString(36).substring(2)
+        })
+      });
+      setNewASite({ name: '', domain: '', api_key: '' });
+      toast.success('A Site added successfully');
+    } catch (e: any) {
+      toast.error(e.message || e);
+    }
   };
 
   const deleteASite = async (id: string) => {
-    await apiFetch(`/asites/${id}`, { method: 'DELETE' });
+    try {
+      await apiFetch(`/asites/${id}`, { method: 'DELETE' });
+      toast.success('A Site deleted');
+    } catch (e: any) {
+      toast.error(e.message || e);
+    }
   };
 
   const addBSite = async () => {
     if(!newBSite.name || !newBSite.domain || !user) return;
-    await apiFetch('/bsites', {
-      method: 'POST',
-      body: JSON.stringify({
-         id: 'site_' + Math.random().toString(36).substring(2),
-         name: newBSite.name,
-         domain: newBSite.domain
-      })
-    });
-    setNewBSite({ name: '', domain: '' });
+    try {
+      await apiFetch('/bsites', {
+        method: 'POST',
+        body: JSON.stringify({
+           id: 'site_' + Math.random().toString(36).substring(2),
+           name: newBSite.name,
+           domain: newBSite.domain
+        })
+      });
+      setNewBSite({ name: '', domain: '' });
+      toast.success('B Site added successfully');
+    } catch (e: any) {
+      toast.error(e.message || e);
+    }
   };
 
   const deleteBSite = async (id: string) => {
-    await apiFetch(`/bsites/${id}`, { method: 'DELETE' });
+    try {
+      await apiFetch(`/bsites/${id}`, { method: 'DELETE' });
+      toast.success('B Site deleted');
+    } catch (e: any) {
+      toast.error(e.message || e);
+    }
   };
 
   const changePollingRule = async (rule: string) => {
@@ -713,7 +733,14 @@ function VortexPayApp() {
 
           <TabsContent value="dashboard" className="space-y-8 animate-in fade-in duration-500">
             {/* KPI STATS */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-0 border-t border-l border-[#141414]">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-0 border-t border-l border-[#141414]">
+              <div className="bg-white p-6 border-r border-b border-[#141414] hover:bg-[#141414] hover:text-white transition-colors group cursor-default">
+                <div className="font-serif italic text-xs uppercase opacity-70 mb-2 group-hover:opacity-100">Plan & Subscription</div>
+                <div className="text-4xl font-mono tracking-tighter uppercase">{tenantCfg.plan || 'Free'}</div>
+                <p className="text-[10px] uppercase font-bold tracking-widest mt-2 opacity-50">
+                  {tenantCfg.expiresAt ? `${(new Date(tenantCfg.expiresAt).getTime() - Date.now()) > 0 ? 'Expires' : 'Expired'} in ${Math.ceil((new Date(tenantCfg.expiresAt).getTime() - Date.now()) / (1000 * 60 * 60 * 24))} days` : 'Permanent Account'}
+                </p>
+              </div>
               <div className="bg-white p-6 border-r border-b border-[#141414] hover:bg-[#141414] hover:text-white transition-colors group cursor-default">
                 <div className="font-serif italic text-xs uppercase opacity-70 mb-2 group-hover:opacity-100">{t('total_vol')}</div>
                 <div className="text-4xl font-mono tracking-tighter">${stats.summary.totalRevenue.toFixed(2)}</div>
@@ -721,12 +748,18 @@ function VortexPayApp() {
               </div>
               <div className="bg-white p-6 border-r border-b border-[#141414] hover:bg-[#141414] hover:text-white transition-colors group cursor-default">
                 <div className="font-serif italic text-xs uppercase opacity-70 mb-2 group-hover:opacity-100">{t('ingress_sources')}</div>
-                <div className="text-4xl font-mono tracking-tighter">{stats.aSites.length} <span className="text-lg">{t('sites')}</span></div>
+                <div className="text-4xl font-mono tracking-tighter">
+                  {stats.aSites.length} 
+                  <span className="text-lg opacity-40 ml-1">/ {stats.quotas?.aSites || 1}</span>
+                </div>
                 <p className="text-[10px] uppercase font-bold tracking-widest mt-2 opacity-50">{t('active_a_domains')}</p>
               </div>
               <div className="bg-white p-6 border-r border-b border-[#141414] hover:bg-[#141414] hover:text-white transition-colors group cursor-default">
                 <div className="font-serif italic text-xs uppercase opacity-70 mb-2 group-hover:opacity-100">{t('egress_gateways')}</div>
-                <div className="text-4xl font-mono tracking-tighter">{stats.bSites.filter((s:any)=>s.active).length} <span className="text-lg">/ {stats.bSites.length}</span></div>
+                <div className="text-4xl font-mono tracking-tighter">
+                  {stats.bSites.filter((s:any)=>s.active).length} 
+                  <span className="text-lg opacity-40 ml-1">/ {stats.quotas?.bSites || 2}</span>
+                </div>
                 <p className="text-[10px] uppercase font-bold tracking-widest mt-2 opacity-50">{t('active_b_domains')}</p>
               </div>
             </div>

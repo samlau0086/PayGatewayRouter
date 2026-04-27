@@ -1,6 +1,6 @@
 {
   "name": "VortexPay Gateway Router",
-  "description": "High-concurrency AB polling payment routing system with complete site isolation and gateway simulated flows.",
+  "description": "High-concurrency AB polling payment routing system with complete site isolation, tiered plan management, and gateway simulated flows.",
   "requestFramePermissions": [],
   "majorCapabilities": []
 }

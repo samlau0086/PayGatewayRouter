@@ -15,6 +15,12 @@ const __dirname = path.dirname(__filename);
 
 const JWT_SECRET = 'super-secret-jwt-key';
 
+const PLAN_QUOTAS: Record<string, { aSites: number, bSites: number }> = {
+  free: { aSites: 1, bSites: 2 },
+  pro: { aSites: 10, bSites: 20 },
+  enterprise: { aSites: 5000, bSites: 5000 }
+};
+
 async function startServer() {
   const app = express();
   const PORT = Number(process.env.PORT) || 3000;
@@ -35,9 +41,9 @@ async function startServer() {
 
       try {
         db.prepare(`
-          INSERT INTO tenants (id, email, password, strategy, roundRobinIndex, apiKey, active, expiresAt)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        `).run(tempUid, email, hashedPassword, 'random', 0, 'sk_admin_' + crypto.randomBytes(4).toString('hex'), 1, expiresAt);
+          INSERT INTO tenants (id, email, password, strategy, roundRobinIndex, apiKey, active, expiresAt, plan)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `).run(tempUid, email, hashedPassword, 'random', 0, 'sk_admin_' + crypto.randomBytes(4).toString('hex'), 1, expiresAt, 'enterprise');
         
         console.log(`[SYSTEM] Bootstrap: Created default admin account: ${email}`);
         console.log(`[SYSTEM] Initial password set. Use .env to customize or change in panel.`);
@@ -111,13 +117,13 @@ async function startServer() {
     } else {
       // New registration
       const tempUid = 'sys_' + crypto.randomBytes(5).toString('hex');
-      const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+      const expiresAt = new Date(Date.now() + 1 * 24 * 60 * 60 * 1000).toISOString(); // 1 day free trial
       
       try {
         db.prepare(`
-          INSERT INTO tenants (id, email, password, strategy, roundRobinIndex, apiKey, active, expiresAt)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        `).run(tempUid, email, hashedPassword, 'random', 0, 'sk_test_' + crypto.randomBytes(4).toString('hex'), 1, expiresAt);
+          INSERT INTO tenants (id, email, password, strategy, roundRobinIndex, apiKey, active, expiresAt, plan)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `).run(tempUid, email, hashedPassword, 'random', 0, 'sk_test_' + crypto.randomBytes(4).toString('hex'), 1, expiresAt, 'free');
         console.log(`[AUTH] Register success: ${email}`);
       } catch (err) {
         console.error(`[AUTH] Register error:`, err);
@@ -335,12 +341,13 @@ async function startServer() {
        pollingConfig: { rule: (tenant as any).strategy },
        aSites,
        bSites,
-       orders
+       orders,
+       quotas: PLAN_QUOTAS[(tenant as any).plan || 'free']
     });
   });
 
   app.put('/api/tenants/:id', requireAuth, (req: any, res: any) => {
-    const { strategy, roundRobinIndex, expiresAt, active } = req.body;
+    const { strategy, roundRobinIndex, expiresAt, active, plan } = req.body;
     const updates: string[] = [];
     const values: any[] = [];
     
@@ -348,6 +355,7 @@ async function startServer() {
     if (roundRobinIndex !== undefined) { updates.push('roundRobinIndex = ?'); values.push(roundRobinIndex); }
     if (expiresAt !== undefined) { updates.push('expiresAt = ?'); values.push(expiresAt); }
     if (active !== undefined) { updates.push('active = ?'); values.push(active ? 1 : 0); }
+    if (plan !== undefined) { updates.push('plan = ?'); values.push(plan); }
     
     if (updates.length > 0) {
       values.push(req.params.id);
@@ -358,8 +366,18 @@ async function startServer() {
 
   app.post('/api/asites', requireAuth, (req: any, res: any) => {
     const { id, name, domain, api_key } = req.body;
+    const tenantId = req.user.uid;
+
+    const tenant = db.prepare('SELECT plan FROM tenants WHERE id = ?').get(tenantId) as any;
+    const currentCount = db.prepare('SELECT COUNT(*) as count FROM a_sites WHERE tenantId = ?').get(tenantId) as any;
+    
+    const quota = PLAN_QUOTAS[tenant.plan || 'free']?.aSites || 1;
+    if (currentCount.count >= quota) {
+      return res.status(403).json({ error: `Quota exceeded. Your current plan (${tenant.plan}) allows only ${quota} A Site(s).` });
+    }
+
     db.prepare('INSERT INTO a_sites (id, tenantId, name, domain, api_key) VALUES (?, ?, ?, ?, ?)')
-      .run(id, req.user.uid, name, domain, api_key);
+      .run(id, tenantId, name, domain, api_key);
     res.json({ success: true });
   });
 
@@ -370,8 +388,18 @@ async function startServer() {
 
   app.post('/api/bsites', requireAuth, (req: any, res: any) => {
     const { id, name, domain } = req.body;
+    const tenantId = req.user.uid;
+
+    const tenant = db.prepare('SELECT plan FROM tenants WHERE id = ?').get(tenantId) as any;
+    const currentCount = db.prepare('SELECT COUNT(*) as count FROM b_sites WHERE tenantId = ?').get(tenantId) as any;
+    
+    const quota = PLAN_QUOTAS[tenant.plan || 'free']?.bSites || 2;
+    if (currentCount.count >= quota) {
+      return res.status(403).json({ error: `Quota exceeded. Your current plan (${tenant.plan}) allows only ${quota} B Site(s).` });
+    }
+
     db.prepare('INSERT INTO b_sites (id, tenantId, name, domain, active) VALUES (?, ?, ?, ?, 1)')
-      .run(id, req.user.uid, name, domain);
+      .run(id, tenantId, name, domain);
     res.json({ success: true });
   });
 
@@ -416,9 +444,9 @@ async function startServer() {
   app.post('/api/admin/tenants', requireAuth, requireAdmin, (req: any, res: any) => {
      const tempUid = 'sys_' + crypto.randomBytes(5).toString('hex');
      db.prepare(`
-         INSERT INTO tenants (id, email, strategy, roundRobinIndex, apiKey, active, expiresAt)
-         VALUES (?, ?, ?, ?, ?, ?, ?)
-       `).run(tempUid, req.body.email, req.body.strategy, req.body.roundRobinIndex, req.body.apiKey, req.body.active ? 1 : 0, req.body.expiresAt);
+         INSERT INTO tenants (id, email, strategy, roundRobinIndex, apiKey, active, expiresAt, plan)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+       `).run(tempUid, req.body.email, req.body.strategy || 'random', req.body.roundRobinIndex || 0, req.body.apiKey || 'sk_' + crypto.randomBytes(4).toString('hex'), req.body.active ? 1 : 0, req.body.expiresAt, req.body.plan || 'free');
      res.json({ success: true });
   });
 
