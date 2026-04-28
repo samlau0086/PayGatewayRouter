@@ -84,21 +84,35 @@ function vortexpay_init_gateway_class() {
             // Support multiple comma-separated router URLs for load balancing/failover
             $urls = array_map('trim', explode(',', $this->router_url));
             $urls = array_filter($urls); // Remove empty
-            $selected_url = !empty($urls) ? $urls[array_rand($urls)] : '';
+            shuffle($urls);
 
-            if (empty($selected_url)) {
+            if (empty($urls)) {
                 wc_add_notice( 'VortexPay is not configured securely.', 'error' );
                 return;
             }
 
-            $response = wp_remote_post( rtrim($selected_url, '/') . '/api/gateway/checkout', array(
-                'body'    => wp_json_encode( $payload ),
-                'headers' => array( 'Content-Type' => 'application/json' ),
-                'timeout' => 15,
-            ) );
+            $success = false;
+            $response = null;
 
-            if ( is_wp_error( $response ) ) {
-                wc_add_notice( 'Connection error.', 'error' );
+            foreach ($urls as $url) {
+                if (empty($url)) continue;
+                $response = wp_remote_post( rtrim($url, '/') . '/api/gateway/checkout', array(
+                    'body'    => wp_json_encode( $payload ),
+                    'headers' => array( 'Content-Type' => 'application/json' ),
+                    'timeout' => 15,
+                ) );
+
+                if ( !is_wp_error( $response ) ) {
+                    $code = wp_remote_retrieve_response_code( $response );
+                    if ( $code >= 200 && $code < 500 ) {
+                         $success = true;
+                         break;
+                    }
+                }
+            }
+
+            if ( !$success || is_wp_error( $response ) ) {
+                wc_add_notice( 'Connection error. All nodes failed.', 'error' );
                 return;
             }
 
@@ -183,13 +197,21 @@ function vortexpay_init_gateway_class() {
              $urls = array_map('trim', explode(',', $router_urls));
              $urls = array_filter($urls);
              if (empty($urls)) return;
-             $selected_url = $urls[array_rand($urls)];
+             shuffle($urls);
 
-             wp_remote_post( rtrim($selected_url, '/') . '/api/webhook/origin', array(
-                'body'    => wp_json_encode( $payload ),
-                'headers' => array( 'Content-Type' => 'application/json' ),
-                'blocking' => false
-            ));
+             foreach ($urls as $url) {
+                 if (empty($url)) continue;
+                 $response = wp_remote_post( rtrim($url, '/') . '/api/webhook/origin', array(
+                     'body'    => wp_json_encode( $payload ),
+                     'headers' => array( 'Content-Type' => 'application/json' ),
+                     'timeout' => 8,
+                     'blocking' => true
+                 ));
+                 
+                 if (!is_wp_error($response)) {
+                     break; // Success, stop trying other nodes
+                 }
+             }
         }
     }
 }
@@ -548,16 +570,25 @@ function vortexpay_b_send_webhook($order_id, $status) {
         'source' => 'b_site_webhook'
     );
 
+    // Shuffle URLs for automatic failover and load balancing
     $urls = array_map('trim', explode(',', $router_urls));
     $urls = array_filter($urls);
     if (empty($urls)) return;
-    $selected_url = $urls[array_rand($urls)];
+    shuffle($urls);
 
-    wp_remote_post( rtrim($selected_url, '/') . '/api/webhook/gateway', array(
-        'body'    => wp_json_encode( $payload ),
-        'headers' => array( 'Content-Type' => 'application/json' ),
-        'blocking' => false
-    ));
+    foreach ($urls as $url) {
+        if (empty($url)) continue;
+        $response = wp_remote_post( rtrim($url, '/') . '/api/webhook/gateway', array(
+            'body'    => wp_json_encode( $payload ),
+            'headers' => array( 'Content-Type' => 'application/json' ),
+            'timeout' => 8,
+            'blocking' => true
+        ));
+        
+        if (!is_wp_error($response)) {
+            break; // Node is alive and received the webhook, stop trying
+        }
+    }
     
     $order->update_meta_data('_vortexpay_synced_' . $status, 'yes');
     $order->save();
