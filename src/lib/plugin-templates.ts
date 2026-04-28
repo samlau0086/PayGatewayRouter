@@ -81,7 +81,17 @@ function vortexpay_init_gateway_class() {
                 $payload['items'][] = $item->get_name();
             }
 
-            $response = wp_remote_post( rtrim($this->router_url, '/') . '/api/gateway/checkout', array(
+            // Support multiple comma-separated router URLs for load balancing/failover
+            $urls = array_map('trim', explode(',', $this->router_url));
+            $urls = array_filter($urls); // Remove empty
+            $selected_url = !empty($urls) ? $urls[array_rand($urls)] : '';
+
+            if (empty($selected_url)) {
+                wc_add_notice( 'VortexPay is not configured securely.', 'error' );
+                return;
+            }
+
+            $response = wp_remote_post( rtrim($selected_url, '/') . '/api/gateway/checkout', array(
                 'body'    => wp_json_encode( $payload ),
                 'headers' => array( 'Content-Type' => 'application/json' ),
                 'timeout' => 15,
@@ -160,16 +170,22 @@ function vortexpay_init_gateway_class() {
              
              if ($order->get_meta('_vortexpay_incoming_sync') === 'yes') return;
 
-             $router_url = $this->get_option('router_url');
-             if(empty($router_url)) return;
+             $router_urls = $this->get_option('router_url');
+             if(empty($router_urls)) return;
 
              $payload = array(
                  'sysOrderId' => $sys_id,
                  'status' => $status,
                  'source' => 'woocommerce_admin'
              );
+             
+             // Pick random URL for webhook failover
+             $urls = array_map('trim', explode(',', $router_urls));
+             $urls = array_filter($urls);
+             if (empty($urls)) return;
+             $selected_url = $urls[array_rand($urls)];
 
-             wp_remote_post( rtrim($router_url, '/') . '/api/webhook/origin', array(
+             wp_remote_post( rtrim($selected_url, '/') . '/api/webhook/origin', array(
                 'body'    => wp_json_encode( $payload ),
                 'headers' => array( 'Content-Type' => 'application/json' ),
                 'blocking' => false
@@ -214,7 +230,7 @@ function vortexpay_b_settings_page() {
         echo '<div class="updated"><p>Saved successfully.</p></div>';
     }
     $url = get_option('vortexpay_router_url', 'VORTEXPAY_ROUTER_URL_PLACEHOLDER');
-    echo '<div class="wrap"><h1>Site B Settings</h1><form method="POST"><p>Enter your VortexPay Router API URL below to enable webhook callbacks.</p><label>Router URL: </label><input type="text" name="vortexpay_router_url" value="'.esc_attr($url).'" style="width:300px;" placeholder="https://your-app.run.app"/><br><br><input type="submit" class="button button-primary" value="Save"/></form></div>';
+    echo '<div class="wrap"><h1>Site B Settings</h1><form method="POST"><p>Enter your VortexPay Router API URLs (comma-separated for load balancing) below.</p><label>Router URL: </label><input type="text" name="vortexpay_router_url" value="'.esc_attr($url).'" style="width:400px;" placeholder="https://api1.com, https://api2.com"/><br><br><input type="submit" class="button button-primary" value="Save"/></form></div>';
 }
 
 // 2. Intercept incoming requests to Site B (e.g., ?vortexpay_sys_id=X&amount=100)
@@ -520,8 +536,8 @@ function vortexpay_b_send_webhook($order_id, $status) {
     // Skip sending webhook if this status was triggered by an incoming router sync
     if ($order->get_meta('_vortexpay_incoming_sync') === 'yes') return;
 
-    $router_url = get_option('vortexpay_router_url');
-    if (empty($router_url)) return;
+    $router_urls = get_option('vortexpay_router_url');
+    if (empty($router_urls)) return;
 
     // Prevent duplicate webhook for the same status
     if ($order->get_meta('_vortexpay_synced_' . $status) === 'yes') return;
@@ -532,7 +548,12 @@ function vortexpay_b_send_webhook($order_id, $status) {
         'source' => 'b_site_webhook'
     );
 
-    wp_remote_post( rtrim($router_url, '/') . '/api/webhook/gateway', array(
+    $urls = array_map('trim', explode(',', $router_urls));
+    $urls = array_filter($urls);
+    if (empty($urls)) return;
+    $selected_url = $urls[array_rand($urls)];
+
+    wp_remote_post( rtrim($selected_url, '/') . '/api/webhook/gateway', array(
         'body'    => wp_json_encode( $payload ),
         'headers' => array( 'Content-Type' => 'application/json' ),
         'blocking' => false

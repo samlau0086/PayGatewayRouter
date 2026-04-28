@@ -8,7 +8,7 @@ import { toast } from 'sonner';
 
 export function AdminPanel({ onBack }: { onBack: () => void }) {
   const [tenants, setTenants] = useState<any[]>([]);
-  const [tab, setTab] = useState<'tenants' | 'settings' | 'fraud'>('tenants');
+  const [tab, setTab] = useState<'tenants' | 'settings' | 'fraud' | 'api_nodes'>('tenants');
   const [newEmail, setNewEmail] = useState('');
   const [newDays, setNewDays] = useState('1');
   const [newPlan, setNewPlan] = useState('free');
@@ -17,6 +17,10 @@ export function AdminPanel({ onBack }: { onBack: () => void }) {
   const [fraudRules, setFraudRules] = useState<any[]>([]);
   const [newRuleKeyword, setNewRuleKeyword] = useState('');
   const [newRuleDesc, setNewRuleDesc] = useState('');
+  
+  // API Nodes state
+  const [apiNodes, setApiNodes] = useState<any[]>([]);
+  const [newNodeUrl, setNewNodeUrl] = useState('');
   
   // Settings state
   const [smtpConfig, setSmtpConfig] = useState<Record<string, string>>({
@@ -57,8 +61,55 @@ export function AdminPanel({ onBack }: { onBack: () => void }) {
        apiFetch('/admin/fraud-rules').then(data => {
           setFraudRules(data);
        }).catch(e => toast.error('Failed to load fraud rules'));
+    } else if (tab === 'api_nodes') {
+       apiFetch('/admin/api-nodes').then(data => {
+          setApiNodes(data);
+       }).catch(e => toast.error('Failed to load API nodes'));
     }
   }, [tab]);
+
+  const addApiNode = async () => {
+    if (!newNodeUrl) return;
+    try {
+      await apiFetch('/admin/api-nodes', {
+         method: 'POST',
+         body: JSON.stringify({ url: newNodeUrl })
+      });
+      setNewNodeUrl('');
+      toast.success('API Node added');
+      apiFetch('/admin/api-nodes').then(setApiNodes);
+    } catch (e) {
+      toast.error('Failed to add node');
+    }
+  };
+
+  const deleteApiNode = async (id: string) => {
+    try {
+      await apiFetch(`/admin/api-nodes/${id}`, { method: 'DELETE' });
+      setApiNodes(apiNodes.filter(n => n.id !== id));
+    } catch (e) {
+      toast.error('Failed to delete node');
+    }
+  };
+
+  const toggleApiNode = async (id: string, active: boolean) => {
+    try {
+      await apiFetch(`/admin/api-nodes/${id}/toggle`, { method: 'PUT', body: JSON.stringify({ active: !active }) });
+      setApiNodes(apiNodes.map(n => n.id === id ? { ...n, active: !n.active ? 1 : 0 } : n));
+    } catch (e) {
+      toast.error('Failed to toggle node');
+    }
+  };
+
+  const checkApiNode = async (id: string) => {
+    try {
+      const res = await apiFetch(`/admin/api-nodes/${id}/check`, { method: 'POST' });
+      toast.info(`Node status: ${res.status}`);
+      setApiNodes(apiNodes.map(n => n.id === id ? { ...n, status: res.status, last_check: res.last_check } : n));
+    } catch (e) {
+      toast.error('Failed to check node');
+    }
+  };
 
   const addFraudRule = async () => {
      if (!newRuleKeyword) return;
@@ -166,6 +217,9 @@ export function AdminPanel({ onBack }: { onBack: () => void }) {
              </button>
              <button onClick={() => setTab('fraud')} className={`px-4 py-2 text-xs font-bold uppercase transition-all ${tab === 'fraud' ? 'bg-[#141414] text-white' : 'text-slate-500 hover:text-black'}`}>
                 Fraud Protection
+             </button>
+             <button onClick={() => setTab('api_nodes')} className={`px-4 py-2 text-xs font-bold uppercase transition-all ${tab === 'api_nodes' ? 'bg-[#141414] text-white' : 'text-slate-500 hover:text-black'}`}>
+                API Nodes
              </button>
              <button onClick={() => setTab('settings')} className={`px-4 py-2 text-xs font-bold uppercase transition-all ${tab === 'settings' ? 'bg-[#141414] text-white' : 'text-slate-500 hover:text-black'}`}>
                 System Settings
@@ -384,6 +438,74 @@ export function AdminPanel({ onBack }: { onBack: () => void }) {
                             </td>
                           </tr>
                         )}
+                     </tbody>
+                   </table>
+                </div>
+             </div>
+          )}
+          {tab === 'api_nodes' && (
+             <div className="bg-white border-2 border-[#141414] shadow-[4px_4px_0_0_#141414] p-6 max-w-4xl mx-auto">
+                <div className="flex items-center gap-3 mb-6">
+                   <Settings className="w-6 h-6 text-purple-600" />
+                   <h2 className="text-xl font-black uppercase tracking-tighter">API Nodes Management</h2>
+                </div>
+                <div className="bg-slate-50 p-4 border-2 border-[#141414] border-dashed mb-8">
+                   <div className="flex gap-4 items-end">
+                      <div className="flex-1">
+                         <label className="text-xs font-bold uppercase tracking-widest mb-2 block">New Node URL</label>
+                         <Input 
+                            placeholder="e.g. https://api1.vortexpay.io" 
+                            className="rounded-none border-2 border-[#141414] h-10 font-mono" 
+                            value={newNodeUrl} 
+                            onChange={e => setNewNodeUrl(e.target.value)} 
+                         />
+                      </div>
+                      <Button onClick={addApiNode} className="bg-[#141414] hover:bg-black text-white rounded-none uppercase font-bold tracking-widest h-10 px-8">
+                         <Plus className="w-4 h-4 mr-2" /> Add Node
+                      </Button>
+                   </div>
+                </div>
+                
+                <div className="border border-slate-200 bg-white">
+                   <table className="w-full text-left text-sm">
+                     <thead className="bg-[#141414] text-white">
+                       <tr>
+                         <th className="p-3 font-bold uppercase tracking-wider">Node URL</th>
+                         <th className="p-3 font-bold uppercase tracking-wider">Status</th>
+                         <th className="p-3 font-bold uppercase tracking-wider">Last Check</th>
+                         <th className="p-3 font-bold uppercase tracking-wider text-right">Actions</th>
+                       </tr>
+                     </thead>
+                     <tbody className="divide-y divide-slate-100">
+                        {apiNodes.length === 0 ? (
+                           <tr>
+                              <td colSpan={4} className="p-6 text-center text-slate-400 font-mono text-sm">No API nodes configured</td>
+                           </tr>
+                        ) : apiNodes.map((n) => (
+                          <tr key={n.id} className="hover:bg-slate-50">
+                             <td className="p-3 font-mono text-xs">{n.url}</td>
+                             <td className="p-3">
+                               <div className="flex items-center gap-2">
+                                 <span className={`w-2 h-2 rounded-full ${n.status === 'healthy' ? 'bg-emerald-500' : n.status === 'error' ? 'bg-red-500' : 'bg-yellow-500'}`}></span>
+                                 <span className="uppercase text-[10px] font-bold tracking-widest text-slate-600">{n.status}</span>
+                               </div>
+                             </td>
+                             <td className="p-3 text-xs text-slate-500 font-mono">
+                               {n.last_check ? new Date(n.last_check).toLocaleString() : 'Never'}
+                             </td>
+                             <td className="p-3 text-right">
+                               <Button variant="ghost" size="sm" onClick={() => checkApiNode(n.id)} className="h-8 rounded-none text-xs mr-2 font-bold uppercase tracking-widest text-slate-500 hover:text-[#141414]">
+                                 Check Now
+                               </Button>
+                               <Button variant="ghost" size="sm" onClick={() => toggleApiNode(n.id, n.active === 1)} className={`h-8 rounded-none text-xs mr-2 font-bold uppercase tracking-widest ${n.active ? 'text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50' : 'text-slate-400 hover:text-[#141414] hover:bg-slate-100'}`}>
+                                 {n.active ? 'Active' : 'Paused'}
+                               </Button>
+                               <Button variant="ghost" size="icon" onClick={() => deleteApiNode(n.id)} className="text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-none h-8 w-8">
+                                 <Trash2 className="w-4 h-4" />
+                               </Button>
+                             </td>
+                          </tr>
+                        ))}
                      </tbody>
                    </table>
                 </div>

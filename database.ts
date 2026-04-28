@@ -71,6 +71,14 @@ db.exec(`
     active INTEGER DEFAULT 1,
     createdAt TEXT
   );
+
+  CREATE TABLE IF NOT EXISTS api_nodes (
+    id TEXT PRIMARY KEY,
+    url TEXT UNIQUE,
+    active INTEGER DEFAULT 1,
+    status TEXT DEFAULT 'pending',
+    last_check TEXT
+  );
 `);
 
 const safeAlter = (query: string) => {

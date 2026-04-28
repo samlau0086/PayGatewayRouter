@@ -336,13 +336,17 @@ async function startServer() {
     const bSites = db.prepare('SELECT * FROM b_sites WHERE tenantId = ?').all(tenantId);
     const orders = db.prepare('SELECT * FROM orders WHERE tenantId = ? ORDER BY createdAt DESC').all(tenantId);
     
+    // Get active and healthy API nodes
+    const activeApiNodes = db.prepare('SELECT url FROM api_nodes WHERE active = 1 AND status = ?').all('healthy').map((n: any) => n.url);
+
     res.json({
        tenantConfig: tenant,
        pollingConfig: { rule: (tenant as any).strategy },
        aSites,
        bSites,
        orders,
-       quotas: PLAN_QUOTAS[(tenant as any).plan || 'free']
+       quotas: PLAN_QUOTAS[(tenant as any).plan || 'free'],
+       apiNodes: activeApiNodes
     });
   });
 
@@ -498,6 +502,60 @@ async function startServer() {
      const { active } = req.body;
      db.prepare('UPDATE fraud_rules SET active = ? WHERE id = ?').run(active ? 1 : 0, req.params.id);
      res.json({ success: true });
+  });
+
+  app.get('/api/admin/api-nodes', requireAuth, requireAdmin, (req: any, res: any) => {
+     const nodes = db.prepare('SELECT * FROM api_nodes').all();
+     res.json(nodes);
+  });
+
+  app.post('/api/admin/api-nodes', requireAuth, requireAdmin, (req: any, res: any) => {
+     let { url } = req.body;
+     if (!url) return res.status(400).json({ error: 'URL is required' });
+     
+     // Trim trailing slash for consistency
+     url = url.replace(/\/+$/, '');
+
+     try {
+       const id = 'node_' + Math.random().toString(36).substring(2, 9);
+       db.prepare('INSERT INTO api_nodes (id, url, active, status, last_check) VALUES (?, ?, 1, ?, ?)').run(id, url, 'pending', new Date().toISOString());
+       res.json({ success: true });
+     } catch (err: any) {
+       res.status(500).json({ error: 'Failed to add node (might be duplicate)' });
+     }
+  });
+
+  app.delete('/api/admin/api-nodes/:id', requireAuth, requireAdmin, (req: any, res: any) => {
+     db.prepare('DELETE FROM api_nodes WHERE id = ?').run(req.params.id);
+     res.json({ success: true });
+  });
+
+  app.put('/api/admin/api-nodes/:id/toggle', requireAuth, requireAdmin, (req: any, res: any) => {
+     const { active } = req.body;
+     db.prepare('UPDATE api_nodes SET active = ? WHERE id = ?').run(active ? 1 : 0, req.params.id);
+     res.json({ success: true });
+  });
+
+  app.post('/api/admin/api-nodes/:id/check', requireAuth, requireAdmin, async (req: any, res: any) => {
+      const node = db.prepare('SELECT * FROM api_nodes WHERE id = ?').get(req.params.id) as any;
+      if (!node) return res.status(404).json({ error: 'Node not found' });
+      
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 5000);
+        const checkRes = await fetch(`${node.url}/api/health`, { signal: controller.signal });
+        clearTimeout(timeoutId);
+        
+        const isOk = checkRes.ok;
+        const status = isOk ? 'healthy' : 'error';
+        const lastCheck = new Date().toISOString();
+        db.prepare('UPDATE api_nodes SET status = ?, last_check = ? WHERE id = ?').run(status, lastCheck, node.id);
+        res.json({ success: true, status, last_check: lastCheck });
+      } catch (err) {
+        const lastCheck = new Date().toISOString();
+        db.prepare('UPDATE api_nodes SET status = ?, last_check = ? WHERE id = ?').run('error', lastCheck, node.id);
+        res.json({ success: true, status: 'error', last_check: lastCheck });
+      }
   });
 
   app.get('/api/admin/settings', requireAuth, requireAdmin, async (req: any, res: any) => {
@@ -1221,6 +1279,27 @@ async function startServer() {
       res.sendFile(path.join(distPath, 'index.html'));
     });
   }
+
+  // Periodic API Nodes Health Check Every 1 Minute
+  setInterval(async () => {
+    try {
+      const nodes = db.prepare('SELECT * FROM api_nodes WHERE active = 1').all() as any[];
+      for (const node of nodes) {
+        try {
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 8000);
+          const res = await fetch(`${node.url}/api/health`, { signal: controller.signal });
+          clearTimeout(timeoutId);
+          const status = res.ok ? 'healthy' : 'error';
+          db.prepare('UPDATE api_nodes SET status = ?, last_check = ? WHERE id = ?').run(status, new Date().toISOString(), node.id);
+        } catch (e) {
+          db.prepare('UPDATE api_nodes SET status = ?, last_check = ? WHERE id = ?').run('error', new Date().toISOString(), node.id);
+        }
+      }
+    } catch (e) {
+      console.error('[SYSTEM] Error in API Node check interval', e);
+    }
+  }, 60000);
 
   app.listen(PORT, "0.0.0.0", () => {
     console.log(`Server running on http://localhost:${PORT}`);

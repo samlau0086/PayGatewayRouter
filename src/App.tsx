@@ -515,8 +515,9 @@ function VortexPayApp() {
     const folderName = filename.replace('.zip', '');
     const folder = zip.folder(folderName);
     
-    // Replace placeholder with actual location
-    const finalizedContent = phpContent.replace(/VORTEXPAY_ROUTER_URL_PLACEHOLDER/g, window.location.origin);
+    // Replace placeholder with actual location or comma separated API nodes
+    const routerUrls = stats?.apiNodes?.length > 0 ? stats.apiNodes.join(',') : window.location.origin;
+    const finalizedContent = phpContent.replace(/VORTEXPAY_ROUTER_URL_PLACEHOLDER/g, routerUrls);
     
     if(folder) folder.file(`${folderName}.php`, finalizedContent);
     const blob = await zip.generateAsync({ type: 'blob' });
@@ -1252,6 +1253,26 @@ function VortexPayApp() {
                  </p>
 
                  <div className="space-y-6">
+                   <div className="p-4 bg-orange-50 border-l-4 border-orange-600 mb-6">
+                      <h4 className="text-xs font-bold uppercase tracking-widest text-[#141414] mb-2 flex items-center">
+                         <Activity className="w-4 h-4 mr-2" /> Global API Endpoints
+                      </h4>
+                      <p className="text-xs font-sans text-slate-600 leading-relaxed mb-3">
+                        Do not hardcode a single gateway domain. To ensure maximum uptime, your frontend or backend must randomly poll/rotate through the following available active nodes when creating an order:
+                      </p>
+                      <div className="flex gap-2 flex-wrap">
+                        {stats.apiNodes && stats.apiNodes.length > 0 ? stats.apiNodes.map((nodeUrl: string, idx: number) => (
+                          <span key={idx} className="bg-white border border-slate-300 px-2 py-1 text-[10px] font-mono font-bold text-slate-700 shadow-sm">
+                            {nodeUrl}
+                          </span>
+                        )) : (
+                          <span className="bg-red-100 text-red-800 border border-red-300 px-2 py-1 text-[10px] font-mono font-bold shadow-sm">
+                            {window.location.origin} (Fallback)
+                          </span>
+                        )}
+                      </div>
+                   </div>
+
                    <div>
                      <h3 className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-2">{t('req_format')} (<span className="text-[#141414]">/api/gateway/checkout</span>)</h3>
                      <pre className="bg-[#141414] text-emerald-400 p-4 font-mono text-[10px] sm:text-xs overflow-x-auto shadow-inner rounded-none mb-4">
