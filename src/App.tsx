@@ -116,7 +116,32 @@ const translations: Record<'en'|'zh', Record<string, string>> = {
     confirm_pwd: "Confirm New Password",
     update_pwd_btn: "Update Password",
     pwd_mismatch: "Passwords do not match",
-    pwd_changed: "Password updated successfully"
+    pwd_changed: "Password updated successfully",
+    shopify_title: "Shopify HPP & Checkout App Integration",
+    shopify_desc: "Since Shopify restricts checkout modifications, we use Hosted Payment Pages (HPP) or custom Shopify Apps to intercept flow.",
+    shopify_step1: "Create a Custom App in your Shopify Admin and generate an Offline Access Token.",
+    shopify_step2: "Inject our redirect script in Shopify's Checkout process (requires Shopify Plus for Checkout Extensibility) or use as an Alternative Payment Method.",
+    shopify_step3: "If modifying the checkout button is not possible, add VortexPay as a manual Offline Payment Method, and deploy our script in the 'Thank You' order confirmation page to automatically redirect the user to the gateway.",
+    view_shopify_docs: "View Shopify Docs",
+    download_inject_script: "Download Inject Script",
+    oc_title: "OpenCart OCMOD Integration",
+    oc_desc: "Standard OpenCart payment module utilizing the classic MVC architecture.",
+    oc_step1: "Download the generic vortexpay_opencart.ocmod.zip plugin via the docs or extension store.",
+    oc_step2: "In your OpenCart Admin, navigate to Extensions > Installer and upload the ZIP file.",
+    oc_step3: "Go to Extensions > Payments, locate VortexPay Routing Gateway and click Install.",
+    oc_step4: "Click Edit, enter your API Key from this dashboard, configure your default Order Status, and save.",
+    view_oc_docs: "View OpenCart Docs",
+    download_ext_zip: "Download Extension (.zip)",
+    download_ext_php: "Download Extension (.php)",
+    sdk_title: "REST API & Native SDK Integration",
+    sdk_desc: "For custom-built architectures, Node.js, PHP, Go, Java, or generic SaaS platforms.",
+    endpoint_payload: "Endpoint Payload",
+    backend_construct: "Your backend should construct this payload and POST it from your server (do not expose your api_key directly in frontend React/Vue scripts if possible).",
+    code_examples: "Code Examples",
+    callback_handling: "Callback Webhook Handling",
+    callback_desc: "The system will POST to your webhook_url upon real payment success/failure.",
+    view_full_api: "View Full API Docs",
+    download_plg_woo: "Download Plugin -> Woo"
   },
   zh: {
     title: "VortexPay 核心路由网关",
@@ -213,7 +238,32 @@ const translations: Record<'en'|'zh', Record<string, string>> = {
     confirm_pwd: "确认新密码",
     update_pwd_btn: "立即更新密码",
     pwd_mismatch: "两次输入的新密码不一致",
-    pwd_changed: "密码已成功修改"
+    pwd_changed: "密码已成功修改",
+    shopify_title: "Shopify HPP & Checkout App 对接指南",
+    shopify_desc: "由于 Shopify 限制了结账页的直接修改，我们通过 HPP 或 Shopify App 的方式来拦截支付流程。",
+    shopify_step1: "在 Shopify 后台创建 Custom App，并生成 Offline Access Token。",
+    shopify_step2: "在结账流程注入自动重定向脚本（需要 Shopify Plus 计划），或者作为辅助支付方式使用。",
+    shopify_step3: "如果无法修改结账按钮，可将 VortexPay 添加为线下付款形式，并在“订单确认页（Thank You）”部署脚本以将用户重定向至收款网关。",
+    view_shopify_docs: "查看 Shopify 对接文档",
+    download_inject_script: "下载注入脚本",
+    oc_title: "OpenCart OCMOD 集成",
+    oc_desc: "标准的 OpenCart 支付模块，利用经典的 MVC 架构实现流量分发。",
+    oc_step1: "通过前台文档或插件市场下载 vortexpay_opencart.ocmod.zip。",
+    oc_step2: "进入 OpenCart 后台的 Extensions > Installer，长传并解压该 ZIP 压缩包。",
+    oc_step3: "进入 Extensions > Payments，找到 VortexPay Routing Gateway 并点击 Install 安装。",
+    oc_step4: "点击 Edit 进入配置，填入本后台生成的 API Key 与默认订单状态，并保存生效。",
+    view_oc_docs: "查看 OpenCart 对接文档",
+    download_ext_zip: "下载扩展包 (.zip)",
+    download_ext_php: "下载扩展包 (.php)",
+    sdk_title: "REST API & SDK 原生对接",
+    sdk_desc: "面向自建技术架构、SaaS 平台或使用 Node.js、PHP、Go 等原生语言的开发者。",
+    endpoint_payload: "API 请求网关与参数",
+    backend_construct: "您的后端服务器应直接推送此构建参数与网关进行通信（安全提示：请尽量避免在纯前端 JS 代码中暴露您的平台 api_key 以防盗用）。",
+    code_examples: "常用代码示例",
+    callback_handling: "异步回调 (Webhook) 接收与处理",
+    callback_desc: "路由系统在接收到下确支付成功/失败的消息后，会第一时间向您的 webhook_url 下发 POST 通知。",
+    view_full_api: "查看完整开发文档",
+    download_plg_woo: "下载专属插件 -> Woo"
   }
 };
 
@@ -1262,7 +1312,7 @@ function VortexPayApp() {
                          {t('site_a_desc')}
                        </p>
                        <Button onClick={() => downloadPlugin('vortexpay-ingress-woocommerce.zip', pluginA)} variant="outline" className="border-red-600 text-red-600 hover:bg-red-50 rounded-none h-8 text-[10px] uppercase font-bold tracking-widest px-3 flex-shrink-0">
-                         {t('download_plg')} -{'>'} Woo
+                         {t('download_plg_woo')}
                        </Button>
                      </div>
                      <div className="space-y-6">
@@ -1336,20 +1386,20 @@ function VortexPayApp() {
 
                <TabsContent value="shopify" className="space-y-6">
                  <div className="pb-4 border-b border-slate-200">
-                   <h3 className="text-lg font-black uppercase text-slate-800 mb-2">Shopify HPP & Checkout App Integration</h3>
+                   <h3 className="text-lg font-black uppercase text-slate-800 mb-2">{t('shopify_title')}</h3>
                    <p className="text-sm font-serif italic text-slate-500">
-                     Since Shopify restricts checkout modifications, we use Hosted Payment Pages (HPP) or custom Shopify Apps to intercept flow.
+                     {t('shopify_desc')}
                    </p>
                  </div>
                  <div className="bg-slate-50 p-6 border-l-4 border-emerald-500">
                     <ol className="list-decimal pl-4 space-y-4 text-xs font-medium text-slate-700">
-                       <li>Create a Custom App in your Shopify Admin and generate an Offline Access Token.</li>
-                       <li>Inject our redirect script in Shopify's Checkout process (requires Shopify Plus for Checkout Extensibility) or use as an Alternative Payment Method.</li>
-                       <li>If modifying the checkout button is not possible, add VortexPay as a manual Offline Payment Method, and deploy our script in the "Thank You" order confirmation page to automatically redirect the user to the gateway.</li>
+                       <li>{t('shopify_step1')}</li>
+                       <li>{t('shopify_step2')}</li>
+                       <li>{t('shopify_step3')}</li>
                     </ol>
                     <div className="mt-6 flex flex-wrap gap-4">
                        <Button onClick={() => window.open('/docs', '_blank')} className="bg-[#141414] hover:bg-black text-white rounded-none h-8 text-[10px] uppercase font-bold tracking-widest">
-                          View Shopify Docs
+                          {t('view_shopify_docs')}
                        </Button>
                        <Button onClick={() => {
                           const blob = new Blob([pluginShopify], { type: 'text/html' });
@@ -1362,7 +1412,7 @@ function VortexPayApp() {
                           document.body.removeChild(a);
                           URL.revokeObjectURL(url);
                        }} variant="outline" className="border-[#141414] text-[#141414] hover:bg-slate-100 rounded-none h-8 text-[10px] uppercase font-bold tracking-widest">
-                          Download Inject Script
+                          {t('download_inject_script')}
                        </Button>
                     </div>
                  </div>
@@ -1370,21 +1420,21 @@ function VortexPayApp() {
 
                <TabsContent value="oc" className="space-y-6">
                  <div className="pb-4 border-b border-slate-200">
-                   <h3 className="text-lg font-black uppercase text-slate-800 mb-2">OpenCart OCMOD Integration</h3>
+                   <h3 className="text-lg font-black uppercase text-slate-800 mb-2">{t('oc_title')}</h3>
                    <p className="text-sm font-serif italic text-slate-500">
-                     Standard OpenCart payment module utilizing the classic MVC architecture.
+                     {t('oc_desc')}
                    </p>
                  </div>
                  <div className="bg-slate-50 p-6 border-l-4 border-amber-500">
                     <ol className="list-decimal pl-4 space-y-4 text-xs font-medium text-slate-700">
-                       <li>Download the generic <code className="font-mono bg-white px-1">vortexpay_opencart.ocmod.zip</code> plugin via the docs or extension store.</li>
-                       <li>In your OpenCart Admin, navigate to <strong>Extensions &gt; Installer</strong> and upload the ZIP file.</li>
-                       <li>Go to <strong>Extensions &gt; Payments</strong>, locate VortexPay Routing Gateway and click Install.</li>
-                       <li>Click Edit, enter your API Key from this dashboard, configure your default Order Status, and save.</li>
+                       <li>{t('oc_step1')}</li>
+                       <li>{t('oc_step2')}</li>
+                       <li>{t('oc_step3')}</li>
+                       <li>{t('oc_step4')}</li>
                     </ol>
                     <div className="mt-6 flex flex-wrap gap-4">
                        <Button onClick={() => window.open('/docs', '_blank')} variant="outline" className="border-amber-600 text-amber-600 hover:bg-amber-50 rounded-none h-8 text-[10px] uppercase font-bold tracking-widest">
-                          View OpenCart Docs
+                          {t('view_oc_docs')}
                        </Button>
                        <Button onClick={() => {
                           const blob = new Blob([pluginOpenCart], { type: 'text/plain' });
@@ -1397,7 +1447,7 @@ function VortexPayApp() {
                           document.body.removeChild(a);
                           URL.revokeObjectURL(url);
                        }} variant="outline" className="border-amber-600 text-amber-600 hover:bg-amber-50 rounded-none h-8 text-[10px] uppercase font-bold tracking-widest">
-                          Download Extension (.php)
+                          {t('download_ext_php')}
                        </Button>
                     </div>
                  </div>
@@ -1405,15 +1455,15 @@ function VortexPayApp() {
 
                <TabsContent value="sdk" className="space-y-6">
                  <div className="pb-4 border-b border-slate-200">
-                   <h3 className="text-lg font-black uppercase text-slate-800 mb-2">REST API & Native SDK Integration</h3>
+                   <h3 className="text-lg font-black uppercase text-slate-800 mb-2">{t('sdk_title')}</h3>
                    <p className="text-sm font-serif italic text-slate-500">
-                     For custom-built architectures, Node.js, PHP, Go, Java, or generic SaaS platforms.
+                     {t('sdk_desc')}
                    </p>
                  </div>
                  
                  <div className="space-y-6">
                    <div className="p-4 bg-orange-50 border-l-4 border-orange-600">
-                      <h4 className="text-xs font-bold uppercase tracking-widest text-[#141414] mb-2">Endpoint Payload</h4>
+                      <h4 className="text-xs font-bold uppercase tracking-widest text-[#141414] mb-2">{t('endpoint_payload')}</h4>
                       <pre className="bg-white border border-orange-200 p-4 font-mono text-[10px] text-slate-800 mb-2 mt-2">
 {`POST /api/gateway/checkout
 
@@ -1425,11 +1475,11 @@ function VortexPayApp() {
   "webhook_url": "https://your.site/api/vortexpay_callback"
 }`}
                       </pre>
-                      <p className="text-[10px] text-slate-600 font-sans italic">Your backend should construct this payload and POST it from your server (do not expose your api_key directly in frontend React/Vue scripts if possible).</p>
+                      <p className="text-[10px] text-slate-600 font-sans italic">{t('backend_construct')}</p>
                    </div>
 
                    <div>
-                     <h4 className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-2">Code Examples</h4>
+                     <h4 className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-2">{t('code_examples')}</h4>
                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                        <div>
                          <p className="text-[10px] uppercase font-bold text-slate-400 mb-1">Node.js (Axios) / Express</p>
@@ -1458,8 +1508,8 @@ if ($res['success']) header("Location: " . $res['paymentUrl']);`}
                    </div>
 
                    <div>
-                     <h4 className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-2">Callback Webhook Handling</h4>
-                     <p className="text-xs text-slate-600 mb-2">The system will POST to your <code className="font-mono bg-slate-100 px-1 text-slate-800">webhook_url</code> upon real payment success/failure.</p>
+                     <h4 className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-2">{t('callback_handling')}</h4>
+                     <p className="text-xs text-slate-600 mb-2">{t('callback_desc')}</p>
                      <pre className="bg-[#141414] text-indigo-400 p-4 font-mono text-[10px] overflow-x-auto rounded-none">
 {`// Received Body
 {
@@ -1474,7 +1524,7 @@ if ($res['success']) header("Location: " . $res['paymentUrl']);`}
                  </div>
                  <div className="mt-4 border-t border-slate-200 pt-4">
                    <Button onClick={() => window.open('/docs', '_blank')} variant="outline" className="border-[#141414] text-[#141414] hover:bg-slate-100 rounded-none h-8 text-[10px] uppercase font-bold tracking-widest">
-                      View Full API Docs
+                      {t('view_full_api')}
                    </Button>
                  </div>
                </TabsContent>
