@@ -408,6 +408,9 @@ export function AdminPanel({ onBack }: { onBack: () => void }) {
 
                     {sysConfig.fraud_asn_provider === 'maxmind' && (
                       <div className="space-y-4 p-4 bg-blue-50/50 border border-blue-200">
+                         <div className="mb-2 text-sm text-blue-800">
+                            <strong>Note:</strong> MaxMind GeoLite2 License Key is strictly free. Register at <a href="https://www.maxmind.com" target="_blank" rel="noreferrer" className="underline">maxmind.com</a> and generate a key under "My License Key".
+                         </div>
                          <div className="flex gap-4">
                            <div className="flex-1">
                              <label className="text-xs font-bold uppercase tracking-widest mb-2 block">MaxMind License Key</label>
@@ -470,9 +473,19 @@ export function AdminPanel({ onBack }: { onBack: () => void }) {
                 </div>
 
                 <div className="pt-8 border-t-2 border-[#141414]">
-                  <div className="flex items-center gap-3 mb-6">
+                  <div className="flex items-center gap-3 mb-2">
                      <ShieldCheck className="w-6 h-6 text-red-600" />
                      <h2 className="text-xl font-black uppercase tracking-tighter">Fraud Protection Rules</h2>
+                  </div>
+                  
+                  <div className="mb-6 text-sm text-slate-600 space-y-2 bg-slate-100 p-4 border-l-4 border-slate-400">
+                     <p>Rules are matched sequentially against the client's localized <strong>ISP Name, Organization, and ASN Data</strong>. If a match is found, the connection drops immediately.</p>
+                     <p><strong>Config Examples:</strong></p>
+                     <ul className="list-disc pl-5 space-y-1">
+                        <li><code className="bg-white px-1">amazon</code> matches Amazon AWS Datacenter.</li>
+                        <li><code className="bg-white px-1">ovh</code> matches OVH Hosting servers.</li>
+                        <li><code className="bg-white px-1">stripe</code> matches Stripe platform webhooks or crawler requests.</li>
+                     </ul>
                   </div>
                 
                 <div className="flex gap-4 items-end mb-8 bg-slate-50 p-4 border-2 border-dashed border-slate-200">
