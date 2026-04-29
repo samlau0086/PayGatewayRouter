@@ -141,7 +141,15 @@ const translations: Record<'en'|'zh', Record<string, string>> = {
     callback_handling: "Callback Webhook Handling",
     callback_desc: "The system will POST to your webhook_url upon real payment success/failure.",
     view_full_api: "View Full API Docs",
-    download_plg_woo: "Download Plugin -> Woo"
+    download_plg_woo: "Download Plugin -> Woo",
+    api_endpoints: "Global API Endpoints",
+    api_endpoints_desc: "Replace the VORTEXPAY_ROUTER_URL_PLACEHOLDER in the plugin with one of these active nodes:",
+    api_endpoints_desc2: "Do not hardcode a single gateway domain. To ensure maximum uptime, your frontend or backend must randomly poll/rotate through the following available active nodes when creating an order:",
+    fallback: "(Fallback)",
+    routing_how_title: "How Does Routing Work Without a User ID?",
+    routing_how_desc1: "When your A Site sends a checkout request, it includes its unique",
+    routing_how_desc2: ". The router securely looks up which owner/tenant this A Site belongs to and automatically applies that specific user's load-balancing and routing rules. No user identifier is needed in the API payload, which keeps your requests simpler and your core identity secure.",
+    plugin_redirect: "Plugin should redirect user -> paymentUrl"
   },
   zh: {
     title: "VortexPay 核心路由网关",
@@ -263,7 +271,15 @@ const translations: Record<'en'|'zh', Record<string, string>> = {
     callback_handling: "异步回调 (Webhook) 接收与处理",
     callback_desc: "路由系统在接收到下确支付成功/失败的消息后，会第一时间向您的 webhook_url 下发 POST 通知。",
     view_full_api: "查看完整开发文档",
-    download_plg_woo: "下载专属插件 -> Woo"
+    download_plg_woo: "下载专属插件 -> Woo",
+    api_endpoints: "全局 API 节点大盘",
+    api_endpoints_desc: "请将代码中的 VORTEXPAY_ROUTER_URL_PLACEHOLDER 替换为以下任意一个活跃节点：",
+    api_endpoints_desc2: "建议：请勿写死单一入口域名。前端或后端在发起支付请求时，请对以下存活节点使用随机轮询，以确保最高可用性与负载均衡：",
+    fallback: "(备用通道)",
+    routing_how_title: "无 User ID 鉴权原理图解",
+    routing_how_desc1: "当您的 A 站发送结账请求时，只携带其独有的",
+    routing_how_desc2: "。路由网关会通过内存级高速查找这把钥匙对应的商户，自动执行属于该商户的 B 站分流、限额与负载规则。整个上游链路对“我是谁”绝对保密，既能简化前端流程，又能实现彻底的核心隔离验证。",
+    plugin_redirect: "插件应获取此 paymentUrl 并重定向用户"
   }
 };
 
@@ -1318,10 +1334,10 @@ function VortexPayApp() {
                      <div className="space-y-6">
                    <div className="p-4 bg-orange-50 border-l-4 border-orange-600 mb-6">
                       <h4 className="text-xs font-bold uppercase tracking-widest text-[#141414] mb-2 flex items-center">
-                         <Activity className="w-4 h-4 mr-2" /> Global API Endpoints
+                         <Activity className="w-4 h-4 mr-2" /> {t('api_endpoints')}
                       </h4>
                       <p className="text-xs font-sans text-slate-600 leading-relaxed mb-3">
-                        Do not hardcode a single gateway domain. To ensure maximum uptime, your frontend or backend must randomly poll/rotate through the following available active nodes when creating an order:
+                        {t('api_endpoints_desc2')}
                       </p>
                       <div className="flex gap-2 flex-wrap">
                         {stats.apiNodes && stats.apiNodes.length > 0 ? stats.apiNodes.map((nodeUrl: string, idx: number) => (
@@ -1330,7 +1346,7 @@ function VortexPayApp() {
                           </span>
                         )) : (
                           <span className="bg-red-100 text-red-800 border border-red-300 px-2 py-1 text-[10px] font-mono font-bold shadow-sm">
-                            {window.location.origin} (Fallback)
+                            {window.location.origin} {t('fallback')}
                           </span>
                         )}
                       </div>
@@ -1349,9 +1365,9 @@ function VortexPayApp() {
                      </pre>
                      
                      <div className="p-4 bg-slate-50 border-l-4 border-red-600 mb-6">
-                        <h4 className="text-xs font-bold uppercase tracking-widest text-[#141414] mb-2">How Does Routing Work Without a User ID?</h4>
+                        <h4 className="text-xs font-bold uppercase tracking-widest text-[#141414] mb-2">{t('routing_how_title')}</h4>
                         <p className="text-xs font-sans text-slate-600 leading-relaxed">
-                          When your A Site sends a checkout request, it includes its unique <code className="font-mono bg-white border border-slate-200 px-1 py-0.5 text-[#141414] rounded-sm">api_key</code>. The router securely looks up which owner/tenant this A Site belongs to and automatically applies that specific user's load-balancing and routing rules. <br/><br/>No user identifier is needed in the API payload, which keeps your requests simpler and your core identity secure.
+                          {t('routing_how_desc1')} <code className="font-mono bg-white border border-slate-200 px-1 py-0.5 text-[#141414] rounded-sm">api_key</code>{t('routing_how_desc2')}
                         </p>
                      </div>
                    </div>
@@ -1364,7 +1380,7 @@ function VortexPayApp() {
   "sysOrderId": "sys_abc123"
 }`}
                      </pre>
-                     <p className="text-xs text-slate-500 mt-2 italic font-serif">Plugin should redirect user -&gt; paymentUrl</p>
+                     <p className="text-xs text-slate-500 mt-2 italic font-serif">{t('plugin_redirect')}</p>
                    </div>
                    
                    <div className="pt-4 border-t border-slate-100 flex flex-col items-start">
