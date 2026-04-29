@@ -23,13 +23,19 @@ export function AdminPanel({ onBack }: { onBack: () => void }) {
   const [newNodeUrl, setNewNodeUrl] = useState('');
   
   // Settings state
-  const [smtpConfig, setSmtpConfig] = useState<Record<string, string>>({
+  const [sysConfig, setSysConfig] = useState<Record<string, string>>({
     smtp_host: '',
     smtp_port: '587',
     smtp_user: '',
     smtp_pass: '',
     smtp_from: '',
-    smtp_secure: 'false'
+    smtp_secure: 'false',
+    fraud_asn_provider: 'ip_api', // ip_api, maxmind, cloudflare
+    maxmind_license_key: '',
+    maxmind_update_interval: '7', // days
+    maxmind_last_updated: '',
+    cloudflare_secret_key: '',
+    cloudflare_account_id: ''
   });
 
   useEffect(() => {
@@ -51,13 +57,14 @@ export function AdminPanel({ onBack }: { onBack: () => void }) {
   }, []);
 
   useEffect(() => {
-    if (tab === 'settings') {
+    if (tab === 'settings' || tab === 'fraud') {
       apiFetch('/admin/settings').then(data => {
         const config: Record<string, string> = {};
         data.forEach((s: any) => config[s.key] = s.value);
-        setSmtpConfig(prev => ({ ...prev, ...config }));
+        setSysConfig(prev => ({ ...prev, ...config }));
       }).catch(e => toast.error('Failed to load settings'));
-    } else if (tab === 'fraud') {
+    } 
+    if (tab === 'fraud') {
        apiFetch('/admin/fraud-rules').then(data => {
           setFraudRules(data);
        }).catch(e => toast.error('Failed to load fraud rules'));
@@ -147,11 +154,22 @@ export function AdminPanel({ onBack }: { onBack: () => void }) {
 
   const saveSettings = async () => {
     try {
-      const payload = Object.entries(smtpConfig).map(([key, value]) => ({ key, value }));
+      const payload = Object.entries(sysConfig).map(([key, value]) => ({ key, value }));
       await apiFetch('/admin/settings', { method: 'POST', body: JSON.stringify(payload) });
       toast.success('System settings updated');
     } catch (e) {
       toast.error('Failed to save settings');
+    }
+  };
+
+  const updateMaxMindDb = async () => {
+    toast.info('Triggering MaxMind DB update...');
+    try {
+      const res = await apiFetch('/admin/maxmind/update', { method: 'POST' });
+      toast.success('MaxMind DB updated successfully');
+      setSysConfig(prev => ({ ...prev, maxmind_last_updated: new Date().toISOString() }));
+    } catch (e: any) {
+      toast.error(e.message || 'Failed to update MaxMind DB');
     }
   };
 
@@ -367,11 +385,95 @@ export function AdminPanel({ onBack }: { onBack: () => void }) {
             </>
           )}
           {tab === 'fraud' && (
-             <div className="bg-white border-2 border-[#141414] shadow-[4px_4px_0_0_#141414] p-6 max-w-4xl mx-auto">
-                <div className="flex items-center gap-3 mb-6">
-                   <ShieldCheck className="w-6 h-6 text-red-600" />
-                   <h2 className="text-xl font-black uppercase tracking-tighter">Fraud Protection Rules</h2>
+             <div className="bg-white border-2 border-[#141414] shadow-[4px_4px_0_0_#141414] p-6 max-w-4xl mx-auto space-y-8">
+                <div>
+                  <div className="flex items-center gap-3 mb-6">
+                     <ShieldCheck className="w-6 h-6 text-red-600" />
+                     <h2 className="text-xl font-black uppercase tracking-tighter">Fraud ASN/IP Provider Configuration</h2>
+                  </div>
+                  <div className="bg-slate-50 border-2 border-dashed border-slate-200 p-6 space-y-6">
+                    <div>
+                      <label className="text-xs font-bold uppercase tracking-widest mb-2 block">Detection Mode</label>
+                      <Select value={sysConfig.fraud_asn_provider} onValueChange={(val) => setSysConfig({...sysConfig, fraud_asn_provider: val})}>
+                        <SelectTrigger className="w-[300px] rounded-none border-2 border-[#141414]">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent className="rounded-none border-2 border-[#141414]">
+                          <SelectItem value="ip_api">ip-api.com (Free, Rate Limited)</SelectItem>
+                          <SelectItem value="maxmind">MaxMind GeoIP2 / ASN (Local Offline)</SelectItem>
+                          <SelectItem value="cloudflare">Cloudflare Turnstile / IP API</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {sysConfig.fraud_asn_provider === 'maxmind' && (
+                      <div className="space-y-4 p-4 bg-blue-50/50 border border-blue-200">
+                         <div className="flex gap-4">
+                           <div className="flex-1">
+                             <label className="text-xs font-bold uppercase tracking-widest mb-2 block">MaxMind License Key</label>
+                             <Input 
+                               value={sysConfig.maxmind_license_key} 
+                               onChange={e => setSysConfig({...sysConfig, maxmind_license_key: e.target.value})} 
+                               className="rounded-none border-2 border-blue-300"
+                               type="password"
+                             />
+                           </div>
+                           <div className="w-[150px]">
+                             <label className="text-xs font-bold uppercase tracking-widest mb-2 block">Auto-Update (Days)</label>
+                             <Input 
+                               value={sysConfig.maxmind_update_interval} 
+                               onChange={e => setSysConfig({...sysConfig, maxmind_update_interval: e.target.value})} 
+                               className="rounded-none border-2 border-blue-300"
+                               type="number" min="1"
+                             />
+                           </div>
+                         </div>
+                         <div className="flex justify-between items-center pt-2">
+                           <span className="text-xs text-blue-800 font-mono">Last Updated: {sysConfig.maxmind_last_updated ? new Date(sysConfig.maxmind_last_updated).toLocaleString() : 'Never'}</span>
+                           <Button onClick={updateMaxMindDb} variant="outline" className="border-blue-700 text-blue-700 hover:bg-blue-100 rounded-none h-8 text-[10px] uppercase font-bold">
+                             Update DB Now
+                           </Button>
+                         </div>
+                      </div>
+                    )}
+
+                    {sysConfig.fraud_asn_provider === 'cloudflare' && (
+                      <div className="space-y-4 p-4 bg-orange-50/50 border border-orange-200">
+                         <div className="flex gap-4">
+                           <div className="flex-1">
+                             <label className="text-xs font-bold uppercase tracking-widest mb-2 block">Cloudflare Secret Key</label>
+                             <Input 
+                               value={sysConfig.cloudflare_secret_key} 
+                               onChange={e => setSysConfig({...sysConfig, cloudflare_secret_key: e.target.value})} 
+                               className="rounded-none border-2 border-orange-300"
+                               type="password"
+                             />
+                           </div>
+                           <div className="flex-1">
+                             <label className="text-xs font-bold uppercase tracking-widest mb-2 block">Cloudflare Account ID</label>
+                             <Input 
+                               value={sysConfig.cloudflare_account_id} 
+                               onChange={e => setSysConfig({...sysConfig, cloudflare_account_id: e.target.value})} 
+                               className="rounded-none border-2 border-orange-300"
+                             />
+                           </div>
+                         </div>
+                      </div>
+                    )}
+
+                    <div className="pt-2">
+                       <Button onClick={saveSettings} className="bg-[#141414] hover:bg-black text-white rounded-none uppercase font-bold tracking-widest h-10 px-8">
+                         Save Configuration
+                       </Button>
+                    </div>
+                  </div>
                 </div>
+
+                <div className="pt-8 border-t-2 border-[#141414]">
+                  <div className="flex items-center gap-3 mb-6">
+                     <ShieldCheck className="w-6 h-6 text-red-600" />
+                     <h2 className="text-xl font-black uppercase tracking-tighter">Fraud Protection Rules</h2>
+                  </div>
                 
                 <div className="flex gap-4 items-end mb-8 bg-slate-50 p-4 border-2 border-dashed border-slate-200">
                    <div className="flex-1">
@@ -447,6 +549,7 @@ export function AdminPanel({ onBack }: { onBack: () => void }) {
                      </tbody>
                    </table>
                 </div>
+              </div>
              </div>
           )}
           {tab === 'api_nodes' && (
@@ -529,8 +632,8 @@ export function AdminPanel({ onBack }: { onBack: () => void }) {
                       <div className="space-y-2">
                         <label className="text-xs font-bold uppercase tracking-widest text-slate-500">SMTP Host</label>
                         <Input 
-                          value={smtpConfig.smtp_host} 
-                          onChange={e => setSmtpConfig({...smtpConfig, smtp_host: e.target.value})} 
+                          value={sysConfig.smtp_host} 
+                          onChange={e => setSysConfig({...sysConfig, smtp_host: e.target.value})} 
                           placeholder="smtp.example.com"
                           className="rounded-none border-2 border-[#141414]"
                         />
@@ -538,8 +641,8 @@ export function AdminPanel({ onBack }: { onBack: () => void }) {
                       <div className="space-y-2">
                         <label className="text-xs font-bold uppercase tracking-widest text-slate-500">SMTP Port</label>
                         <Input 
-                          value={smtpConfig.smtp_port} 
-                          onChange={e => setSmtpConfig({...smtpConfig, smtp_port: e.target.value})} 
+                          value={sysConfig.smtp_port} 
+                          onChange={e => setSysConfig({...sysConfig, smtp_port: e.target.value})} 
                           placeholder="587"
                           className="rounded-none border-2 border-[#141414]"
                         />
@@ -550,8 +653,8 @@ export function AdminPanel({ onBack }: { onBack: () => void }) {
                       <div className="space-y-2">
                         <label className="text-xs font-bold uppercase tracking-widest text-slate-500">SMTP Username</label>
                         <Input 
-                          value={smtpConfig.smtp_user} 
-                          onChange={e => setSmtpConfig({...smtpConfig, smtp_user: e.target.value})} 
+                          value={sysConfig.smtp_user} 
+                          onChange={e => setSysConfig({...sysConfig, smtp_user: e.target.value})} 
                           placeholder="user@example.com"
                           className="rounded-none border-2 border-[#141414]"
                         />
@@ -560,8 +663,8 @@ export function AdminPanel({ onBack }: { onBack: () => void }) {
                         <label className="text-xs font-bold uppercase tracking-widest text-slate-500">SMTP Password</label>
                         <Input 
                           type="password"
-                          value={smtpConfig.smtp_pass} 
-                          onChange={e => setSmtpConfig({...smtpConfig, smtp_pass: e.target.value})} 
+                          value={sysConfig.smtp_pass} 
+                          onChange={e => setSysConfig({...sysConfig, smtp_pass: e.target.value})} 
                           placeholder="••••••••"
                           className="rounded-none border-2 border-[#141414]"
                         />
@@ -572,15 +675,15 @@ export function AdminPanel({ onBack }: { onBack: () => void }) {
                       <div className="space-y-2">
                         <label className="text-xs font-bold uppercase tracking-widest text-slate-500">From Name/Email</label>
                         <Input 
-                          value={smtpConfig.smtp_from} 
-                          onChange={e => setSmtpConfig({...smtpConfig, smtp_from: e.target.value})} 
+                          value={sysConfig.smtp_from} 
+                          onChange={e => setSysConfig({...sysConfig, smtp_from: e.target.value})} 
                           placeholder='"VortexPay" <no-reply@vortexpay.io>'
                           className="rounded-none border-2 border-[#141414]"
                         />
                       </div>
                       <div className="space-y-2">
                         <label className="text-xs font-bold uppercase tracking-widest text-slate-500">Secure (SSL/TLS)</label>
-                        <Select value={smtpConfig.smtp_secure} onValueChange={(val) => setSmtpConfig({...smtpConfig, smtp_secure: val})}>
+                        <Select value={sysConfig.smtp_secure} onValueChange={(val) => setSysConfig({...sysConfig, smtp_secure: val})}>
                            <SelectTrigger className="rounded-none border-2 border-[#141414]">
                              <SelectValue />
                            </SelectTrigger>

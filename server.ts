@@ -8,10 +8,23 @@ import bcrypt from "bcryptjs";
 import speakeasy from "speakeasy";
 import qrcode from "qrcode";
 import nodemailer from "nodemailer";
+import { execSync } from "child_process";
+import fs from "fs";
+import maxmind from "maxmind";
 import db from "./database.js"; // Use local sqlite db
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+let asnLookup: maxmind.Reader<maxmind.AsnResponse> | null = null;
+try {
+  const mmdbPath = path.join(__dirname, 'GeoLite2-ASN.mmdb');
+  if (fs.existsSync(mmdbPath)) {
+    maxmind.open<maxmind.AsnResponse>(mmdbPath).then(lookup => asnLookup = lookup);
+  }
+} catch (e) {
+  console.log("MaxMind DB not available locally yet");
+}
 
 const JWT_SECRET = 'super-secret-jwt-key';
 
@@ -578,6 +591,42 @@ async function startServer() {
      res.json({ success: true });
   });
 
+  app.post('/api/admin/maxmind/update', requireAuth, requireAdmin, async (req: any, res: any) => {
+    try {
+      const licenseRow = db.prepare('SELECT value FROM system_settings WHERE key = ?').get('maxmind_license_key') as any;
+      if (!licenseRow || !licenseRow.value) {
+        return res.status(400).json({ error: 'MaxMind License Key not configured' });
+      }
+      
+      const licenseKey = licenseRow.value;
+      const downloadUrl = `https://download.maxmind.com/app/geoip_download?edition_id=GeoLite2-ASN&license_key=${licenseKey}&suffix=tar.gz`;
+      
+      const tmpPath = path.join(__dirname, 'maxmind_tmp.tar.gz');
+      const dlRes = await fetch(downloadUrl);
+      if (!dlRes.ok) throw new Error('Failed to download MaxMind DB: ' + dlRes.statusText);
+      const buffer = await dlRes.arrayBuffer();
+      fs.writeFileSync(tmpPath, Buffer.from(buffer));
+      
+      // Extract directly ignoring directory structure and just taking the mmdb
+      execSync(`tar -xzf maxmind_tmp.tar.gz --strip-components=1 --wildcards "*.mmdb"`, { cwd: __dirname });
+      
+      // Clean up
+      fs.unlinkSync(tmpPath);
+      
+      // Reload
+      const mmdbPath = path.join(__dirname, 'GeoLite2-ASN.mmdb');
+      if (fs.existsSync(mmdbPath)) {
+         asnLookup = await maxmind.open<maxmind.AsnResponse>(mmdbPath);
+         db.prepare('INSERT OR REPLACE INTO system_settings (key, value) VALUES (?, ?)').run('maxmind_last_updated', new Date().toISOString());
+      }
+      
+      res.json({ success: true });
+    } catch (e: any) {
+      console.error('Failed to update maxmind:', e);
+      res.status(500).json({ error: e.message || 'Server error updating MaxMind' });
+    }
+  });
+
   // --- Public Gateway APIs ---
 
   // Mock Request from A Site Plugin (WooCommerce / Custom)
@@ -882,28 +931,55 @@ async function startServer() {
   // Helper to check for blacklisted ASNs/IPs
   const checkIPBlacklist = async (ip: string) => {
     if (!ip || ip === '127.0.0.1' || ip === '::1' || ip.startsWith('10.') || ip.startsWith('192.168.')) return false;
+    
+    // Fetch active rules from DB
+    const rules = db.prepare('SELECT keyword FROM fraud_rules WHERE active = 1').all() as any[];
+    const blockedKeywords = rules.map(r => r.keyword);
+    if (blockedKeywords.length === 0) {
+       blockedKeywords.push('paypal', 'stripe', 'google', 'amazon', 'aws', 'microsoft', 'azure', 'digitalocean', 'ovh', 'fortinet', 'palo alto', 'datacenter', 'hosting', 'alibaba', 'tencent', 'spider', 'bot');
+    }
+
+    const checkMatch = (searchStr: string) => {
+      const lowerStr = searchStr.toLowerCase();
+      for (const keyword of blockedKeywords) {
+        if (lowerStr.includes(keyword)) {
+          console.log(`[Fraud Block] IP ${ip} matched keyword ${keyword}: ${lowerStr}`);
+          return true;
+        }
+      }
+      return false;
+    };
+
     try {
+      const providerSetting = db.prepare('SELECT value FROM system_settings WHERE key = ?').get('fraud_asn_provider') as any;
+      const provider = providerSetting?.value || 'ip_api';
+
+      if (provider === 'maxmind' && asnLookup) {
+        const asnData = asnLookup.get(ip);
+        if (asnData) {
+          const searchStr = `${asnData.autonomous_system_organization || ''} AS${asnData.autonomous_system_number || ''}`;
+          if (checkMatch(searchStr)) return true;
+        } else {
+          console.log(`[Fraud Check] IP ${ip} not found in MaxMind ASN DB`);
+        }
+        return false;
+      }
+      
+      if (provider === 'cloudflare') {
+         // Cloudflare Turnstile token verification would typically happen here during a form submit
+         // Since this is a redirect jump page, we might rely on CF headers if deployed on CF
+         // Fallback to IP API for IP-based checks if CF specific checks aren't available
+         console.log('Cloudflare protection active, IP-based fallback in use');
+      }
+
+      // Default to ip-api Mode
       const res = await fetch(`http://ip-api.com/json/${ip}?fields=status,message,isp,org,as`);
       const data = await res.json() as any;
       if (data.status === 'success') {
-        const searchStr = `${data.org || ''} ${data.as || ''} ${data.isp || ''}`.toLowerCase();
-        
-        // Fetch active rules from DB
-        const rules = db.prepare('SELECT keyword FROM fraud_rules WHERE active = 1').all() as any[];
-        const blockedKeywords = rules.map(r => r.keyword);
-        
-        // Fallback default rules if none are configured yet, to prevent sudden drop in protection
-        if (blockedKeywords.length === 0) {
-           blockedKeywords.push('paypal', 'stripe', 'google', 'amazon', 'aws', 'microsoft', 'azure', 'digitalocean', 'ovh', 'fortinet', 'palo alto', 'datacenter', 'hosting', 'alibaba', 'tencent', 'spider', 'bot');
-        }
-
-        for (const keyword of blockedKeywords) {
-          if (searchStr.includes(keyword)) {
-            console.log(`[Fraud Block] IP ${ip} matched keyword ${keyword}: ${searchStr}`);
-            return true;
-          }
-        }
+        const searchStr = `${data.org || ''} ${data.as || ''} ${data.isp || ''}`;
+        if (checkMatch(searchStr)) return true;
       }
+      
     } catch (e) {
       console.error('IP Blacklist check failed:', e);
     }
@@ -1303,6 +1379,42 @@ async function startServer() {
       console.error('[SYSTEM] Error in API Node check interval', e);
     }
   }, 60000);
+
+  // Auto-Update MaxMind Loop
+  setInterval(() => {
+     try {
+        const modeRow = db.prepare('SELECT value FROM system_settings WHERE key = ?').get('fraud_asn_provider') as any;
+        if (modeRow?.value === 'maxmind') {
+           const intervalRow = db.prepare('SELECT value FROM system_settings WHERE key = ?').get('maxmind_update_interval') as any;
+           const lastUpdatedRow = db.prepare('SELECT value FROM system_settings WHERE key = ?').get('maxmind_last_updated') as any;
+           
+           const intervalDays = parseInt(intervalRow?.value || '7', 10);
+           const lastUpdated = lastUpdatedRow?.value ? new Date(lastUpdatedRow.value).getTime() : 0;
+           
+           if (Date.now() - lastUpdated > intervalDays * 24 * 60 * 60 * 1000) {
+              console.log('[MaxMind] Auto-updating database...');
+              const licenseRow = db.prepare('SELECT value FROM system_settings WHERE key = ?').get('maxmind_license_key') as any;
+              if (licenseRow?.value) {
+                 const dlUrl = `https://download.maxmind.com/app/geoip_download?edition_id=GeoLite2-ASN&license_key=${licenseRow.value}&suffix=tar.gz`;
+                 const tmpPath = path.join(__dirname, 'maxmind_tmp_auto.tar.gz');
+                 fetch(dlUrl).then(r => r.arrayBuffer()).then(buffer => {
+                    fs.writeFileSync(tmpPath, Buffer.from(buffer));
+                    execSync(`tar -xzf maxmind_tmp_auto.tar.gz --strip-components=1 --wildcards "*.mmdb"`, { cwd: __dirname });
+                    fs.unlinkSync(tmpPath);
+                    const mmdbPath = path.join(__dirname, 'GeoLite2-ASN.mmdb');
+                    if (fs.existsSync(mmdbPath)) {
+                       maxmind.open<maxmind.AsnResponse>(mmdbPath).then(l => asnLookup = l);
+                       db.prepare('INSERT OR REPLACE INTO system_settings (key, value) VALUES (?, ?)').run('maxmind_last_updated', new Date().toISOString());
+                       console.log('[MaxMind] Auto-update completed.');
+                    }
+                 }).catch(e => console.error('[MaxMind] Auto-update fetched failed:', e.message));
+              }
+           }
+        }
+     } catch(e) {
+        // ignore
+     }
+  }, 1000 * 60 * 60); // check every hour
 
   app.listen(PORT, "0.0.0.0", () => {
     console.log(`Server running on http://localhost:${PORT}`);
